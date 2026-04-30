@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Parse-test every .scm file under languages/lex/ against a real .lex
-# fixture. Confirms each query is syntactically valid and matches against
-# a tree-sitter-lex parse tree without erroring.
+# Parse-test every .scm file under languages/lex/ against a self-contained
+# .lex fixture. Confirms each query is syntactically valid and matches
+# against a tree-sitter-lex parse tree without erroring.
 #
-# Fixture resolution order:
+# The fixture (test/fixtures/sample.lex) lives in this repo so the smoke
+# test stays hermetic — the comms/ spec fixtures are not part of the
+# tree-sitter-lex release tarball.
+#
+# Grammar resolution order (for parser.c + scanner.c):
 #   1. ../tree-sitter-lex sibling checkout (typical local dev layout)
-#   2. /tmp/tree-sitter-lex (CI extracts the release tarball there)
+#   2. /tmp/tree-sitter-lex (already extracted)
 #   3. Download tree-sitter-lex tarball from GitHub releases at the
 #      version pinned in shared/lex-deps.json
 #
@@ -48,25 +52,14 @@ if [[ ! -f src/parser.c ]]; then
     npx --yes tree-sitter-cli@0.25 generate >/dev/null
 fi
 
-FIXTURE=""
-for candidate in \
-    comms/specs/benchmark/060-injection-multilang.lex \
-    comms/specs/benchmark/080-gentle-introduction.lex \
-    comms/specs/benchmark/010-kitchensink.lex; do
-    if [[ -f "$candidate" ]]; then
-        FIXTURE="$candidate"
-        break
-    fi
-done
-if [[ -z "$FIXTURE" ]]; then
-    FIXTURE="$(find . -name '*.lex' -print -quit || true)"
-fi
-if [[ -z "$FIXTURE" ]]; then
-    echo "  ✗ no .lex fixture found at $TS_DIR" >&2
+FIXTURE="$REPO_DIR/test/fixtures/sample.lex"
+if [[ ! -f "$FIXTURE" ]]; then
+    echo "  ✗ fixture missing: $FIXTURE" >&2
     exit 1
 fi
 
-echo "  fixture: $TS_DIR/$FIXTURE"
+echo "  fixture: $FIXTURE"
+echo "  grammar: $TS_DIR"
 
 FAILED=false
 for q in "$QUERY_DIR"/*.scm; do
