@@ -42,10 +42,14 @@ Override the language server binary in `settings.json`:
 
 ## Development
 
+Prerequisites: Rust + the WASM target, Node (for `tree-sitter-cli`),
+[bats-core][bats], and Python 3.11+.
+
 ```sh
 rustup target add wasm32-wasip2
-./scripts/test-all              # full check (fmt, clippy, build, manifest, queries)
-./scripts/test-all --quick      # skip the query smoke test (no network needed)
+brew install bats-core            # macOS; on Linux: apt-get install -y bats
+./scripts/test-all                # full check (fmt, clippy, build, manifest, queries)
+./scripts/test-all --quick        # skip the query bats suite (no network needed)
 ```
 
 `scripts/test-all` is the single source of truth for quality checks. The
@@ -55,9 +59,30 @@ pre-commit hook and CI both invoke it. To install the hook:
 ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 ```
 
-The pre-commit hook runs `--quick` (skips the query smoke test, which
+The pre-commit hook runs `--quick` (skips the query bats suite, which
 needs either a sibling `tree-sitter-lex` checkout or network access). CI
 runs the full thing.
+
+### Running individual tests
+
+The bats suites support `--filter` for fast iteration:
+
+```sh
+bats --filter "highlights" test/queries.bats
+bats --filter "lexd-lsp" test/manifest.bats
+```
+
+### Adding an injection language
+
+`languages/lex/injections.scm` is generated. Edit `LANGUAGES` in
+`scripts/gen-injections.py`, run it, and commit the regenerated file.
+The bats suite asserts the file matches the generator output.
+
+```sh
+python3 scripts/gen-injections.py
+```
+
+[bats]: https://github.com/bats-core/bats-core
 
 After editing the extension, reinstall the dev extension in Zed (the
 command palette action will rebuild and reload). Logs are surfaced via
