@@ -1,0 +1,15 @@
+id = "lex"
+name = "Lex"
+version = "0.1.0"
+schema_version = 1
+authors = ["Arthur Debert <debert@gmail.com>"]
+description = "Lex document format support: syntax highlighting via tree-sitter, plus the lex-lsp language server (formatting, diagnostics, code actions)."
+repository = "https://github.com/lex-fmt/zed-lex"
+
+[language_servers.lex-lsp]
+name = "Lex LSP"
+language = "Lex"
+
+[grammars.lex]
+repository = "https://github.com/lex-fmt/tree-sitter-lex"
+commit = "7197b61d235c76919074a190ee650d0a1266dc9c"

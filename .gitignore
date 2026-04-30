@@ -1,0 +1,6 @@
+/target
+/grammars
+/extension.wasm
+*.wasm
+.DS_Store
+.padz
