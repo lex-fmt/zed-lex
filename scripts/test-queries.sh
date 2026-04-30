@@ -47,10 +47,10 @@ fi
 
 cd "$TS_DIR"
 
-# Generate parser if not already present
-if [[ ! -f src/parser.c ]]; then
-    npx --yes tree-sitter-cli@0.25 generate >/dev/null
-fi
+# Always run `tree-sitter generate` from grammar.js. The release tarball
+# ships parser.c but not src/grammar.json, which `tree-sitter query`
+# needs to resolve the language. generate is idempotent and fast.
+npx --yes tree-sitter-cli@0.25 generate >/dev/null
 
 FIXTURE="$REPO_DIR/test/fixtures/sample.lex"
 if [[ ! -f "$FIXTURE" ]]; then
