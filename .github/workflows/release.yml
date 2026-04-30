@@ -65,12 +65,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # fetch-depth: 0 alone gets the tag ref but not always the
+          # annotated-tag object (the bit `%(contents)` reads from).
+          # fetch-tags: true forces tag objects to be fetched so
+          # `git tag -l --format='%(contents)'` returns the body.
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Read release notes from tag annotation
         id: notes
         run: |
+          # Belt and braces: dereference the annotation directly via
+          # cat-file in case --format='%(contents)' returns empty
+          # (would happen if the tag arrived as lightweight).
           BODY=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          if [[ -z "$BODY" ]]; then
+              BODY=$(git cat-file -p "$GITHUB_REF_NAME" 2>/dev/null \
+                  | sed -n '/^$/,$p' | tail -n +2)
+          fi
+          if [[ -z "$BODY" ]]; then
+              echo "::warning::Empty release notes for $GITHUB_REF_NAME"
+              BODY="Release $GITHUB_REF_NAME"
+          fi
+          echo "Release body ($(echo "$BODY" | wc -l) lines):"
+          echo "$BODY" | head -5
           {
             echo "body<<RELEASE_NOTES_EOF"
             echo "$BODY"
