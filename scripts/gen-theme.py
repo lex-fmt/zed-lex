@@ -63,25 +63,32 @@ THEMES = {
 # ---------------------------------------------------------------------------
 # Mapping: Zed syntax-capture name -> { intensity, font_style?, font_weight? }
 # Mirrors the captures emitted by languages/lex/highlights.scm.
+#
+# Keys are written as "<base>.lex" because highlights.scm dual-tags every
+# overridable capture (e.g. `@title @title.lex`) and Zed tries the
+# rightmost capture first. Targeting the .lex suffix here means:
+#   - Lex files use these monochrome colours (rightmost capture matches)
+#   - Other languages capture only @<base> (no suffix), so this override
+#     doesn't reach them; their syntax keeps the active theme's defaults
 # ---------------------------------------------------------------------------
 
 BOLD = 700  # canonical CSS / Zed "bold" weight
 
 SYNTAX_OVERRIDES: dict[str, dict] = {
-    "title":                   {"intensity": "normal", "font_weight": BOLD},
-    "property":                {"intensity": "normal", "font_style": "italic"},
-    "text.literal":            {"intensity": "normal"},
-    "string.special":          {"intensity": "faint"},
-    "punctuation.list_marker": {"intensity": "muted",  "font_style": "italic"},
-    "emphasis":                {"intensity": "normal", "font_style": "italic"},
-    "emphasis.strong":         {"intensity": "normal", "font_weight": BOLD},
-    "string.escape":           {"intensity": "faint"},
-    "punctuation.special":     {"intensity": "faint"},
-    "comment":                 {"intensity": "faint"},
-    "link_text":               {"intensity": "muted"},
-    "link_uri":                {"intensity": "muted"},
-    "constant":                {"intensity": "muted"},
-    "punctuation.delimiter":   {"intensity": "faint"},
+    "title.lex":                   {"intensity": "normal", "font_weight": BOLD},
+    "property.lex":                {"intensity": "normal", "font_style": "italic"},
+    "text.literal.lex":            {"intensity": "normal"},
+    "string.special.lex":          {"intensity": "faint"},
+    "punctuation.list_marker.lex": {"intensity": "muted",  "font_style": "italic"},
+    "emphasis.lex":                {"intensity": "normal", "font_style": "italic"},
+    "emphasis.strong.lex":         {"intensity": "normal", "font_weight": BOLD},
+    "string.escape.lex":           {"intensity": "faint"},
+    "punctuation.special.lex":     {"intensity": "faint"},
+    "comment.lex":                 {"intensity": "faint"},
+    "link_text.lex":               {"intensity": "muted"},
+    "link_uri.lex":                {"intensity": "muted"},
+    "constant.lex":                {"intensity": "muted"},
+    "punctuation.delimiter.lex":   {"intensity": "faint"},
 }
 
 

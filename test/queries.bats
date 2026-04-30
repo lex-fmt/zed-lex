@@ -59,6 +59,22 @@ setup_file() {
     assert_query_captures "$QUERY_DIR/highlights.scm" punctuation.list_marker 2
 }
 
+# Lex-specific dual-tag: every theme-overridable capture is emitted both
+# as @x and @x.lex. The .lex variants are what theme_overrides targets,
+# so if dual-tagging regresses, theme_overrides silently stops working
+# for that capture.
+@test "highlights.scm dual-tags @title.lex" {
+    assert_query_captures "$QUERY_DIR/highlights.scm" title.lex 2
+}
+
+@test "highlights.scm dual-tags @comment.lex" {
+    assert_query_captures "$QUERY_DIR/highlights.scm" comment.lex 1
+}
+
+@test "highlights.scm dual-tags @emphasis.lex" {
+    assert_query_captures "$QUERY_DIR/highlights.scm" emphasis.lex 1
+}
+
 @test "injections.scm fires injection.content for python and json blocks" {
     assert_query_captures "$QUERY_DIR/injections.scm" injection.content 2
 }

@@ -5,9 +5,12 @@
   `scripts/gen-theme.py` into `themes/lex-monochrome.json`. Ships
   `theme_overrides` for One Dark and One Light keyed by theme name so
   Zed auto-applies the right colours when system appearance flips.
-- Earlier per-language `experimental.theme_overrides` form is rejected
+- Lex-only scope via dual-tagged captures in `languages/lex/highlights.scm`:
+  every overridable capture is emitted as `@x @x.lex`. Zed picks the
+  rightmost first, so theme_overrides keyed on `title.lex` / `comment.lex`
+  etc. only reach Lex files; other languages keep their base styling.
+  (Earlier per-language `experimental.theme_overrides` form is rejected
   by Zed's settings schema; the supported path is top-level
-  `theme_overrides` keyed by theme name. Documented the global-scope
-  trade-off in README.
-- New bats test (`themes/lex-monochrome.json matches scripts/gen-theme.py`)
-  guards drift between the snippet and the generator.
+  `theme_overrides` keyed by theme name, hence this dual-capture trick.)
+- New bats tests guard the dual-tagging regression and the
+  `gen-theme.py` ↔ `themes/lex-monochrome.json` sync.

@@ -2,102 +2,102 @@
   "theme_overrides": {
     "One Dark": {
       "syntax": {
-        "title": {
+        "title.lex": {
           "color": "#e0e0e0",
           "font_weight": 700
         },
-        "property": {
+        "property.lex": {
           "color": "#e0e0e0",
           "font_style": "italic"
         },
-        "text.literal": {
+        "text.literal.lex": {
           "color": "#e0e0e0"
         },
-        "string.special": {
+        "string.special.lex": {
           "color": "#666666"
         },
-        "punctuation.list_marker": {
+        "punctuation.list_marker.lex": {
           "color": "#888888",
           "font_style": "italic"
         },
-        "emphasis": {
+        "emphasis.lex": {
           "color": "#e0e0e0",
           "font_style": "italic"
         },
-        "emphasis.strong": {
+        "emphasis.strong.lex": {
           "color": "#e0e0e0",
           "font_weight": 700
         },
-        "string.escape": {
+        "string.escape.lex": {
           "color": "#666666"
         },
-        "punctuation.special": {
+        "punctuation.special.lex": {
           "color": "#666666"
         },
-        "comment": {
+        "comment.lex": {
           "color": "#666666"
         },
-        "link_text": {
+        "link_text.lex": {
           "color": "#888888"
         },
-        "link_uri": {
+        "link_uri.lex": {
           "color": "#888888"
         },
-        "constant": {
+        "constant.lex": {
           "color": "#888888"
         },
-        "punctuation.delimiter": {
+        "punctuation.delimiter.lex": {
           "color": "#666666"
         }
       }
     },
     "One Light": {
       "syntax": {
-        "title": {
+        "title.lex": {
           "color": "#000000",
           "font_weight": 700
         },
-        "property": {
+        "property.lex": {
           "color": "#000000",
           "font_style": "italic"
         },
-        "text.literal": {
+        "text.literal.lex": {
           "color": "#000000"
         },
-        "string.special": {
+        "string.special.lex": {
           "color": "#b3b3b3"
         },
-        "punctuation.list_marker": {
+        "punctuation.list_marker.lex": {
           "color": "#808080",
           "font_style": "italic"
         },
-        "emphasis": {
+        "emphasis.lex": {
           "color": "#000000",
           "font_style": "italic"
         },
-        "emphasis.strong": {
+        "emphasis.strong.lex": {
           "color": "#000000",
           "font_weight": 700
         },
-        "string.escape": {
+        "string.escape.lex": {
           "color": "#b3b3b3"
         },
-        "punctuation.special": {
+        "punctuation.special.lex": {
           "color": "#b3b3b3"
         },
-        "comment": {
+        "comment.lex": {
           "color": "#b3b3b3"
         },
-        "link_text": {
+        "link_text.lex": {
           "color": "#808080"
         },
-        "link_uri": {
+        "link_uri.lex": {
           "color": "#808080"
         },
-        "constant": {
+        "constant.lex": {
           "color": "#808080"
         },
-        "punctuation.delimiter": {
+        "punctuation.delimiter.lex": {
           "color": "#b3b3b3"
         }
       }

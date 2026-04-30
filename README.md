@@ -63,12 +63,13 @@ its `theme_overrides` block into your `settings.json`:
 When your `theme.mode` is `system`, Zed auto-applies the right override
 on appearance change — no manual swap.
 
-**Scope caveat**: Zed has no per-language `theme_overrides`, so this
-recolours **every** language in those themes, not just `.lex` files. If
-you want monochrome restricted to Lex you'd need a separate Zed *theme
-extension* (a heavier, separate repo). For most users who reach for
-the monochrome aesthetic, applying it editor-wide is what they want
-anyway.
+**Lex-only scope** is achieved through dual-tagged captures in
+`languages/lex/highlights.scm`: every overridable capture is emitted
+twice, e.g. `(session title: ... @title @title.lex)`. Zed tries the
+rightmost capture (`title.lex`) first; with our override defining
+`title.lex`, only Lex hits it. Other languages capture as `@title`
+without the `.lex` suffix, so the override doesn't reach them — they
+stay on the active theme's defaults.
 
 To add a theme other than One Dark / One Light, edit `THEMES` in
 `scripts/gen-theme.py` and re-run. Editing the snippet directly fails
