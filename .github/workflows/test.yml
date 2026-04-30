@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# CI invokes scripts/test-all — the same script the pre-commit hook
+# runs. Keeping CI thin (just installing prerequisites) means there is
+# only one place to add or change a check, and the failure mode is the
+# same locally and remotely.
+
 jobs:
-  build:
-    name: Build WASM + lint
+  test:
+    name: scripts/test-all
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,114 +29,12 @@ jobs:
         with:
           shared-key: zed-lex-wasm
 
-      - name: cargo fmt
-        run: cargo fmt --all -- --check
-
-      - name: cargo clippy
-        run: cargo clippy --release --target wasm32-wasip2 -- -D warnings
-
-      - name: cargo build (wasm32-wasip2)
-        run: cargo build --release --target wasm32-wasip2
-
-      - name: Verify WASM artifact exists
-        run: test -f target/wasm32-wasip2/release/zed_lex.wasm
-
-  queries:
-    name: Tree-sitter queries parse
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Node + tree-sitter CLI
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm install --no-save tree-sitter-cli@0.25
 
-      - name: Read pinned tree-sitter version
-        id: deps
-        run: |
-          TS_VERSION=$(jq -r '.["tree-sitter"]' shared/lex-deps.json)
-          TS_REPO=$(jq -r '.["tree-sitter-repo"]' shared/lex-deps.json)
-          echo "ts_version=$TS_VERSION" >> $GITHUB_OUTPUT
-          echo "ts_repo=$TS_REPO" >> $GITHUB_OUTPUT
+      # Python 3 ships on ubuntu-latest with tomllib (3.11+).
 
-      - name: Download tree-sitter-lex source
-        uses: robinraju/release-downloader@v1.10
-        with:
-          repository: ${{ steps.deps.outputs.ts_repo }}
-          tag: ${{ steps.deps.outputs.ts_version }}
-          fileName: "tree-sitter.tar.gz"
-          tarBall: false
-          zipBall: false
-          out-file-path: /tmp
-
-      - name: Extract grammar
-        run: |
-          mkdir -p /tmp/tree-sitter-lex
-          tar -xzf /tmp/tree-sitter.tar.gz -C /tmp/tree-sitter-lex
-          ls /tmp/tree-sitter-lex
-
-      - name: Generate parser
-        working-directory: /tmp/tree-sitter-lex
-        run: npx --yes tree-sitter-cli@0.25 generate
-
-      - name: Run each Zed query against a fixture
-        working-directory: /tmp/tree-sitter-lex
-        run: |
-          set -e
-          QUERY_DIR="$GITHUB_WORKSPACE/languages/lex"
-          # Pick the first .lex spec fixture available; tree-sitter-lex's
-          # release tarball ships them under comms/specs/. Fall back to
-          # any .lex anywhere in the tarball.
-          FIXTURE=$(find . -name '*.lex' -print -quit)
-          if [ -z "$FIXTURE" ]; then
-            echo "No .lex fixture found in tree-sitter-lex tarball" >&2
-            exit 1
-          fi
-          echo "Testing queries against $FIXTURE"
-          for q in highlights injections textobjects outline brackets indents; do
-            QUERY_FILE="$QUERY_DIR/$q.scm"
-            if [ ! -s "$QUERY_FILE" ]; then
-              echo "skip $q.scm (empty)"
-              continue
-            fi
-            echo "=== $q.scm ==="
-            npx --yes tree-sitter-cli@0.25 query "$QUERY_FILE" "$FIXTURE" >/dev/null
-          done
-
-  manifest:
-    name: Validate extension.toml
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check required fields
-        run: |
-          python3 - <<'PY'
-          import sys, tomllib
-          with open('extension.toml','rb') as f:
-              data = tomllib.load(f)
-          required = ['id','name','version','schema_version','authors','description','repository']
-          missing = [k for k in required if k not in data]
-          if missing:
-              print(f"Missing required fields in extension.toml: {missing}", file=sys.stderr)
-              sys.exit(1)
-          # grammar must point at a repo + commit SHA
-          grammars = data.get('grammars', {})
-          if not grammars:
-              print("No [grammars.*] table in extension.toml", file=sys.stderr); sys.exit(1)
-          for name, g in grammars.items():
-              if 'repository' not in g or 'commit' not in g:
-                  print(f"[grammars.{name}] needs both repository and commit", file=sys.stderr)
-                  sys.exit(1)
-              if len(g['commit']) != 40:
-                  print(f"[grammars.{name}] commit must be a 40-char SHA, got {g['commit']!r}", file=sys.stderr)
-                  sys.exit(1)
-          print("extension.toml: OK")
-          PY
-
-      - name: Confirm shared/lex-deps.json parses
-        run: |
-          python3 -c "import json; json.load(open('shared/lex-deps.json'))"
-          echo "shared/lex-deps.json: OK"
+      - name: scripts/test-all
+        run: ./scripts/test-all

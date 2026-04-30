@@ -44,9 +44,20 @@ Override the language server binary in `settings.json`:
 
 ```sh
 rustup target add wasm32-wasip2
-cargo build --release --target wasm32-wasip2
-cargo clippy --release --target wasm32-wasip2 -- -D warnings
+./scripts/test-all              # full check (fmt, clippy, build, manifest, queries)
+./scripts/test-all --quick      # skip the query smoke test (no network needed)
 ```
+
+`scripts/test-all` is the single source of truth for quality checks. The
+pre-commit hook and CI both invoke it. To install the hook:
+
+```sh
+ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+```
+
+The pre-commit hook runs `--quick` (skips the query smoke test, which
+needs either a sibling `tree-sitter-lex` checkout or network access). CI
+runs the full thing.
 
 After editing the extension, reinstall the dev extension in Zed (the
 command palette action will rebuild and reload). Logs are surfaced via

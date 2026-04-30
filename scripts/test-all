@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# test-all: single entry point for all zed-lex quality checks.
+#
+# Runs the same checks in every context: pre-commit hook, CI, manual.
+#
+# Usage:
+#   ./scripts/test-all              # full check (queries need the grammar)
+#   ./scripts/test-all --quick      # skip query smoke test (fast, no network)
+#
+# Checks:
+#   1. cargo fmt --check
+#   2. cargo clippy --target wasm32-wasip2 -D warnings
+#   3. cargo build --release --target wasm32-wasip2
+#   4. manifest validation (extension.toml + shared/lex-deps.json)
+#   5. (unless --quick) every .scm query parses against a real .lex fixture
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_DIR"
+
+QUICK=false
+for arg in "$@"; do
+    case "$arg" in
+        --quick) QUICK=true ;;
+        -h|--help)
+            sed -n '2,15p' "$0"
+            exit 0
+            ;;
+        *) echo "Unknown arg: $arg" >&2; exit 2 ;;
+    esac
+done
+
+FAILED=false
+WASM_TARGET="wasm32-wasip2"
+
+# --- 1. cargo fmt ---
+echo "═══ cargo fmt --check ═══"
+if ! cargo fmt --all -- --check; then
+    echo "Run: cargo fmt"
+    FAILED=true
+fi
+
+# --- 2. cargo clippy (wasm target) ---
+echo
+echo "═══ cargo clippy --target $WASM_TARGET ═══"
+if ! cargo clippy --release --target "$WASM_TARGET" -- -D warnings; then
+    FAILED=true
+fi
+
+# --- 3. cargo build (wasm target) ---
+echo
+echo "═══ cargo build --release --target $WASM_TARGET ═══"
+if ! cargo build --release --target "$WASM_TARGET"; then
+    FAILED=true
+fi
+
+# --- 4. manifest validation ---
+echo
+echo "═══ manifest validation ═══"
+if ! python3 "$SCRIPT_DIR/validate-manifest.py"; then
+    FAILED=true
+fi
+
+# --- 5. query smoke test (skippable) ---
+if $QUICK; then
+    echo
+    echo "═══ query smoke test (skipped: --quick) ═══"
+else
+    echo
+    echo "═══ query smoke test ═══"
+    if ! "$SCRIPT_DIR/test-queries.sh"; then
+        FAILED=true
+    fi
+fi
+
+# --- summary ---
+echo
+if $FAILED; then
+    echo "RESULT: FAIL"
+    exit 1
+fi
+echo "RESULT: PASS"

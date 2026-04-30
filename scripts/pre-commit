@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Pre-commit hook for zed-lex.
+# Runs the fast subset of scripts/test-all (skips the query smoke test,
+# which needs either a sibling tree-sitter-lex checkout or network access).
+# CI runs the full thing.
+#
+# Install: ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+
+REPO_DIR="$(git rev-parse --show-toplevel)"
+exec "$REPO_DIR/scripts/test-all" --quick
