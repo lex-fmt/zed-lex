@@ -1,187 +1,121 @@
-; Highlight queries for Lex
-; See: https://tree-sitter.github.io/tree-sitter/syntax-highlighting
+; Highlight queries for Lex — Zed flavour.
 ;
-; These captures map tree-sitter CST nodes to TextMate scopes. The LSP's
-; semantic tokens override these in editors, but the scopes here must be
-; structurally correct — a session title is a heading, a list item is a
-; list item, a definition subject is a definition term.
-;
-; Reference: lex-analysis/src/semantic_tokens.rs defines the authoritative
-; LSP token types. This file mirrors that mapping at CST granularity.
-;
-; PRECEDENCE: In tree-sitter queries, LATER patterns override earlier ones
-; when multiple patterns match the same node. Specific overrides (e.g.
-; verbatim closing markers) must appear AFTER their generic counterparts.
+; This file is intentionally separate from tree-sitter-lex's upstream
+; queries/highlights.scm, which targets nvim-treesitter / TextMate scope
+; conventions (@markup.heading, @markup.bold, …). Zed's theme uses a
+; different, flat capture-name vocabulary (@title, @emphasis.strong, …),
+; so the same scopes don't render. The structural capture choices below
+; mirror lex-analysis/src/semantic_tokens.rs at CST granularity — the
+; LSP's semantic tokens still override these for clients that request
+; them, but a syntactic baseline must look right too.
 
 ; === Document Title ===
-; Document title is the primary heading (LSP: DocumentTitle)
 (document_title
-  title: (line_content) @markup.heading)
+  title: (line_content) @title)
 
-; Document subtitle (LSP: DocumentSubtitle)
 (document_subtitle
-  subtitle: (line_content) @markup.heading.subtitle)
+  subtitle: (line_content) @title)
 
-; Document title sequence marker (e.g., numbered title)
 (document_title
   title: (line_content
-    (list_marker) @punctuation.definition.heading))
+    (list_marker) @punctuation.list_marker))
 
 ; === Sessions ===
-; Session titles are headings (LSP: SessionTitleText)
 (session
-  title: (line_content) @markup.heading)
+  title: (line_content) @title)
 
-; Session sequence marker (LSP: SessionMarker) — numbered titles like "1. Title"
-; list_marker inside a session title is structural, not a list item
 (session
   title: (line_content
-    (list_marker) @punctuation.definition.heading))
+    (list_marker) @punctuation.list_marker))
 
 ; === Definitions ===
-; Definition subjects are terms being defined (LSP: DefinitionSubject)
-; NOT headings — they are variable/term definitions
 (definition
-  subject: (subject_content) @variable.other.definition)
+  subject: (subject_content) @property)
 
 ; === Verbatim Blocks ===
-; Verbatim subject line (LSP: VerbatimSubject)
 (verbatim_block
-  subject: (subject_content) @markup.raw.block)
+  subject: (subject_content) @string.special)
 
-; Verbatim block body content is raw/preformatted (LSP: VerbatimContent)
 (verbatim_block
-  (paragraph) @markup.raw)
+  (paragraph) @text.literal)
 (verbatim_block
-  (definition) @markup.raw)
+  (definition) @text.literal)
 (verbatim_block
-  (list) @markup.raw)
+  (list) @text.literal)
 (verbatim_block
-  (verbatim_content) @markup.raw)
+  (verbatim_content) @text.literal)
 (verbatim_block
-  (session) @markup.raw)
+  (session) @text.literal)
 
-; Verbatim group item subjects and content
 (verbatim_group_item
-  subject: (subject_content) @markup.raw.block)
+  subject: (subject_content) @string.special)
 (verbatim_group_item
-  (paragraph) @markup.raw)
+  (paragraph) @text.literal)
 (verbatim_group_item
-  (definition) @markup.raw)
+  (definition) @text.literal)
 (verbatim_group_item
-  (list) @markup.raw)
+  (list) @text.literal)
 (verbatim_group_item
-  (verbatim_content) @markup.raw)
+  (verbatim_content) @text.literal)
 (verbatim_group_item
-  (session) @markup.raw)
+  (session) @text.literal)
 
 ; === Lists ===
-; List marker (- , 1. , a) , etc.) — captures just the marker portion
-; (LSP: ListMarker). Content is handled by inline captures below.
 (list_item
-  (list_marker) @markup.list)
+  (list_marker) @punctuation.list_marker)
 
-; === Annotations (generic) ===
-; Annotation delimiters (LSP: part of AnnotationLabel)
+; === Annotations ===
 (annotation_marker) @punctuation.special
 (annotation_close) @punctuation.special
-
-; Annotation header — the label between :: markers (LSP: AnnotationLabel)
 (annotation_header) @comment
-
-; Annotation inline text (LSP: AnnotationContent)
 (annotation_inline_text) @comment
-
-; Annotation block body content (LSP: AnnotationContent)
 (annotation_block
   (_) @comment)
 
-; === Verbatim closing metadata (overrides generic annotation captures) ===
-; Annotation nodes inside verbatim_block are the closing `:: label ::` line
-; (LSP: VerbatimLanguage/VerbatimAttribute). These MUST appear AFTER generic
-; annotation captures so they take priority.
+; Verbatim closing metadata: the `:: label ::` line at the end of a
+; verbatim block is structurally an annotation but visually it's part of
+; the verbatim block. Render it as @text.literal so it doesn't pop out.
+; Must come AFTER the generic annotation captures above.
 (verbatim_block
-  (annotation_marker) @markup.raw.block)
+  (annotation_marker) @text.literal)
 (verbatim_block
-  (annotation_close) @markup.raw.block)
+  (annotation_close) @text.literal)
 (verbatim_block
-  (annotation_header) @markup.raw.block)
+  (annotation_header) @text.literal)
 
-; === Table structure ===
-; Tables are definitions whose body contains table_row nodes. The CST
-; preserves the full hierarchy: definition > table_row > table_cell >
-; text_content — tables are NOT terminal nodes. Cell block content
-; (lists, definitions, etc.) is resolved at the AST level by lex-core.
-
-; Table caption — italic to distinguish from regular definitions.
-; Overrides the generic @variable.other.definition capture above.
+; === Tables ===
+; Table caption — emphasis to distinguish from regular definitions.
 (definition
-  subject: (subject_content) @markup.italic
+  subject: (subject_content) @emphasis
   (table_row))
 
-; Header row — first table_row in a definition (bold text).
-; The anchor (.) ensures only the first row after the subject matches.
+; Header row — first table_row in a definition (bold).
 (definition
   subject: (_) .
   (table_row
     (table_cell
-      (text_content) @markup.bold)))
+      (text_content) @emphasis.strong)))
 
-; Pipe delimiters — dimmed punctuation
+; Pipe delimiters
 (table_row
-  (pipe_delimiter) @comment)
+  (pipe_delimiter) @punctuation.delimiter)
 
-; Table separator rows — fully dimmed (cosmetic, parser ignores them)
+; Table separator rows — comment-toned (cosmetic, parser ignores them).
 (table_separator_row) @comment
 
-; Table cell inline content inherits from the inline rules below.
-; Merge markers (>> and ^^) are highlighted via content predicates:
-((table_cell
-  (text_content) @keyword.operator)
- (#match? @keyword.operator "^\\s*>>\\s*$"))
-((table_cell
-  (text_content) @keyword.operator)
- (#match? @keyword.operator "^\\s*\\^\\^\\s*$"))
-
 ; === Inline formatting ===
-(strong) @markup.bold
-(emphasis) @markup.italic
-(code_span) @markup.raw.inline
-(math_span) @markup.math
+(strong) @emphasis.strong
+(emphasis) @emphasis
+(code_span) @text.literal
+(math_span) @text.literal
 (escape_sequence) @string.escape
 
-; === References (typed) ===
-; Generic fallback — all references are links
-(reference) @markup.link
-
-; Specific reference type overrides (later = higher priority)
-(citation_reference) @markup.link
-(annotation_reference) @markup.link
-(url_reference) @markup.link.url
-(file_reference) @markup.link.url
-(session_reference) @markup.link
-(tocome_reference) @constant.builtin
-(number_reference) @markup.link
-
-; === Spell checking ===
-; Enable spell checking on prose content (leaf text nodes)
-(line_content) @spell
-(text_content) @spell
-(subject_content) @spell
-
-; Disable in verbatim blocks (content is code/preformatted)
-(verbatim_block (paragraph (text_line (line_content) @nospell)))
-(verbatim_block (verbatim_content) @nospell)
-(verbatim_block subject: (subject_content) @nospell)
-(verbatim_group_item (paragraph (text_line (line_content) @nospell)))
-(verbatim_group_item (verbatim_content) @nospell)
-(verbatim_group_item subject: (subject_content) @nospell)
-
-; Disable on non-prose inline elements
-(code_span) @nospell
-(math_span) @nospell
-(escape_sequence) @nospell
-
-; Disable on metadata/annotations
-(annotation_header) @nospell
-(annotation_inline_text) @nospell
+; === References ===
+(reference) @link_text
+(citation_reference) @link_text
+(annotation_reference) @link_text
+(url_reference) @link_uri
+(file_reference) @link_uri
+(session_reference) @link_text
+(tocome_reference) @constant
+(number_reference) @link_text
