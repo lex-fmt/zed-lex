@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
-"""Generate themes/lex-monochrome.{dark,light}.json from the canonical
-4-tier intensity color map.
+"""Generate themes/lex-monochrome.json from the canonical 4-tier
+intensity color map.
 
 Lex Monochrome is the same scheme shipped in the nvim plugin
 (`lua/lex/theme.lua`) and the vscode extension. Until
 `comms/shared/theme.json` lands as a single source of truth across all
-editors (active project per ../.padz / memory), the colour table is
-duplicated here.
+editors (active project per memory), the colour table is duplicated here.
 
-Output snippets are pasted into Zed's settings.json under:
+Output is a single Zed `theme_overrides` object keyed by theme name.
+That's the only override mechanism Zed actually supports for syntax
+recoloring with auto dark/light switching. The trade-off is that the
+override is **global** — it applies to every file in those themes, not
+just .lex. (Zed has no per-language theme override path; the
+`languages.<Lang>.experimental.theme_overrides` form some older docs
+suggest is rejected by current settings schema validation.)
 
-    languages > Lex > experimental.theme_overrides > syntax
+By default we generate overrides for One Dark / One Light because
+they're Zed's defaults and what most "system mode" setups use. To add
+more themes, edit THEMES below and re-run.
 
-Zed's per-language `experimental.theme_overrides` supports `color`,
-`font_style`, and `font_weight` only; per-token background and
-text-decoration are not honoured, so the code-block background and
-reference underlines from nvim/vscode don't carry over. Colour does the
-heavy lifting through the intensity hierarchy.
-
-Run after editing the COLORS / SYNTAX_OVERRIDES tables, then commit the
-regenerated files. The bats suite runs `gen-theme.py --check` so an
+Run after editing COLORS / SYNTAX_OVERRIDES / THEMES, then commit the
+regenerated file. The bats suite runs `gen-theme.py --check` so an
 out-of-sync snippet fails CI.
 """
 from __future__ import annotations
@@ -32,9 +33,7 @@ from pathlib import Path
 # Canonical 4-tier monochrome palette
 #
 # CANDIDATE for promotion to comms/shared/theme.json once the cross-editor
-# unification project (memory: project_theme_unification.md) lands. nvim
-# already uses these exact values in lua/lex/theme.lua; vscode/lexed are
-# scheduled to align in their own repos.
+# unification project lands.
 # ---------------------------------------------------------------------------
 
 COLORS = {
@@ -52,64 +51,41 @@ COLORS = {
     },
 }
 
+# Themes to emit overrides for. The key is the exact Zed theme name (as
+# shown in the theme picker); the value is the appearance the colours
+# should be rendered for. Add more entries here for users on Ayu,
+# Gruvbox, Andromeda, etc.
+THEMES = {
+    "One Dark":  "dark",
+    "One Light": "light",
+}
+
 # ---------------------------------------------------------------------------
 # Mapping: Zed syntax-capture name -> { intensity, font_style?, font_weight? }
-#
-# Keys mirror the captures emitted by languages/lex/highlights.scm.
-# Anything not listed inherits the active theme's default for that capture.
-# Intensity names index into COLORS[appearance]. Weight 700 is "bold".
+# Mirrors the captures emitted by languages/lex/highlights.scm.
 # ---------------------------------------------------------------------------
 
-# 700 is the canonical "bold" font-weight in CSS / Zed's schema.
-BOLD = 700
+BOLD = 700  # canonical CSS / Zed "bold" weight
 
 SYNTAX_OVERRIDES: dict[str, dict] = {
-    # Headings: document title, session titles. Bold to read as primary.
-    "title": {"intensity": "normal", "font_weight": BOLD},
-
-    # Definition subjects: italic, full intensity (the reader cares about
-    # the term being defined).
-    "property": {"intensity": "normal", "font_style": "italic"},
-
-    # Verbatim / code / math content. In nvim/vscode there's a code_bg,
-    # but Zed overrides don't accept background_color — colour only.
-    "text.literal": {"intensity": "normal"},
-
-    # Verbatim subjects (the line introducing a code block) and the
-    # closing :: lang :: line — meta, faint.
-    "string.special": {"intensity": "faint"},
-
-    # List markers: muted italic, signal "structural" without competing
-    # with the prose body.
-    "punctuation.list_marker": {"intensity": "muted", "font_style": "italic"},
-
-    # Inline emphasis / strong. Bold is bold; italic is italic.
-    "emphasis":         {"intensity": "normal", "font_style": "italic"},
-    "emphasis.strong":  {"intensity": "normal", "font_weight": BOLD},
-
-    # Escape sequences (\*, \_, …): faint; they're scaffolding.
-    "string.escape": {"intensity": "faint"},
-
-    # Annotation markers `::` and the body between them: faint; metadata.
-    "punctuation.special": {"intensity": "faint"},
-    "comment":             {"intensity": "faint"},
-
-    # References / links: muted. Underline isn't honoured by overrides
-    # (per Zed schema), so we lean on colour.
-    "link_text": {"intensity": "muted"},
-    "link_uri":  {"intensity": "muted"},
-
-    # tocome references: muted constant.
-    "constant": {"intensity": "muted"},
-
-    # Table pipes: faint, structural.
-    "punctuation.delimiter": {"intensity": "faint"},
+    "title":                   {"intensity": "normal", "font_weight": BOLD},
+    "property":                {"intensity": "normal", "font_style": "italic"},
+    "text.literal":            {"intensity": "normal"},
+    "string.special":          {"intensity": "faint"},
+    "punctuation.list_marker": {"intensity": "muted",  "font_style": "italic"},
+    "emphasis":                {"intensity": "normal", "font_style": "italic"},
+    "emphasis.strong":         {"intensity": "normal", "font_weight": BOLD},
+    "string.escape":           {"intensity": "faint"},
+    "punctuation.special":     {"intensity": "faint"},
+    "comment":                 {"intensity": "faint"},
+    "link_text":               {"intensity": "muted"},
+    "link_uri":                {"intensity": "muted"},
+    "constant":                {"intensity": "muted"},
+    "punctuation.delimiter":   {"intensity": "faint"},
 }
 
 
-def render_overrides(appearance: str) -> dict:
-    """Return the full settings-shape so the file is copy-paste-mergeable
-    into the user's settings.json without restructuring."""
+def render_syntax(appearance: str) -> dict:
     palette = COLORS[appearance]
     syntax = {}
     for capture, spec in SYNTAX_OVERRIDES.items():
@@ -119,50 +95,41 @@ def render_overrides(appearance: str) -> dict:
         if "font_weight" in spec:
             entry["font_weight"] = spec["font_weight"]
         syntax[capture] = entry
+    return syntax
 
+
+def render() -> dict:
     return {
-        "languages": {
-            "Lex": {
-                "experimental.theme_overrides": {"syntax": syntax}
-            }
+        "theme_overrides": {
+            theme_name: {"syntax": render_syntax(appearance)}
+            for theme_name, appearance in THEMES.items()
         }
     }
 
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
-    themes_dir = repo_root / "themes"
-    themes_dir.mkdir(exist_ok=True)
-
-    targets = {
-        themes_dir / "lex-monochrome.dark.json":  render_overrides("dark"),
-        themes_dir / "lex-monochrome.light.json": render_overrides("light"),
-    }
+    target = repo_root / "themes" / "lex-monochrome.json"
+    target.parent.mkdir(exist_ok=True)
+    expected = render()
 
     if "--check" in sys.argv:
-        ok = True
-        for path, expected in targets.items():
-            if not path.exists():
-                print(f"FAIL: {path.relative_to(repo_root)} missing", file=sys.stderr)
-                ok = False
-                continue
-            actual = json.loads(path.read_text())
-            if actual != expected:
-                print(
-                    f"FAIL: {path.relative_to(repo_root)} out of sync.\n"
-                    f"      Run: python3 scripts/gen-theme.py",
-                    file=sys.stderr,
-                )
-                ok = False
-        if not ok:
+        if not target.exists():
+            print(f"FAIL: {target.relative_to(repo_root)} missing", file=sys.stderr)
             return 1
-        for path in targets:
-            print(f"  ✓ {path.relative_to(repo_root)} matches generator")
+        actual = json.loads(target.read_text())
+        if actual != expected:
+            print(
+                f"FAIL: {target.relative_to(repo_root)} out of sync.\n"
+                f"      Run: python3 scripts/gen-theme.py",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"  ✓ {target.relative_to(repo_root)} matches generator")
         return 0
 
-    for path, content in targets.items():
-        path.write_text(json.dumps(content, indent=2) + "\n")
-        print(f"wrote {path.relative_to(repo_root)}")
+    target.write_text(json.dumps(expected, indent=2) + "\n")
+    print(f"wrote {target.relative_to(repo_root)} ({len(THEMES)} themes)")
     return 0
 
 

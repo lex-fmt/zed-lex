@@ -78,9 +78,9 @@ load 'helpers'
     python3 "$REPO_DIR/scripts/gen-injections.py" --check
 }
 
-# themes/lex-monochrome.{dark,light}.json are generated from gen-theme.py.
-# Keeps the canonical 4-tier color map and Zed capture-name mapping in
-# one place; touching the snippets directly fails this test.
-@test "themes/lex-monochrome.{dark,light}.json match scripts/gen-theme.py" {
+# themes/lex-monochrome.json is generated from gen-theme.py. Keeps the
+# canonical 4-tier color map and Zed capture-name mapping in one place;
+# touching the snippet directly fails this test.
+@test "themes/lex-monochrome.json matches scripts/gen-theme.py" {
     python3 "$REPO_DIR/scripts/gen-theme.py" --check
 }

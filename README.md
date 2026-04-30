@@ -42,23 +42,37 @@ Override the language server binary in `settings.json`:
 
 ### Lex Monochrome theme
 
-A 4-tier grayscale syntax-override scheme — same look as the Lex
-nvim/vscode plugins, scaled down to what Zed's per-language overrides
-can express (color + font weight/style; per-token backgrounds and
-underlines are not honoured). Pick the file matching your Zed theme's
-appearance and merge it into your `settings.json`:
+A 4-tier grayscale syntax scheme — same look as the Lex nvim/vscode
+plugins, expressed through Zed's `theme_overrides` mechanism (the only
+override Zed accepts; an older per-language `experimental.theme_overrides`
+form mentioned in some docs is rejected by current schema validation).
 
-- [`themes/lex-monochrome.dark.json`](themes/lex-monochrome.dark.json)
-- [`themes/lex-monochrome.light.json`](themes/lex-monochrome.light.json)
+[`themes/lex-monochrome.json`](themes/lex-monochrome.json) ships
+overrides for **One Dark** and **One Light** (Zed's defaults). Merge
+its `theme_overrides` block into your `settings.json`:
 
-Each file is shaped as a complete `languages.Lex` block ready to merge.
-If you switch between dark and light Zed themes, swap the snippet too —
-Zed's `experimental.theme_overrides` doesn't auto-switch on appearance.
+```json
+{
+  "theme_overrides": {
+    "One Dark":  { "syntax": { /* ... */ } },
+    "One Light": { "syntax": { /* ... */ } }
+  }
+}
+```
 
-The colour table mirrors the canonical 4-tier intensity map shared
-across the editor fleet (memory: theme unification project). Editing
-the snippet directly fails CI; update `scripts/gen-theme.py` and
-re-run.
+When your `theme.mode` is `system`, Zed auto-applies the right override
+on appearance change — no manual swap.
+
+**Scope caveat**: Zed has no per-language `theme_overrides`, so this
+recolours **every** language in those themes, not just `.lex` files. If
+you want monochrome restricted to Lex you'd need a separate Zed *theme
+extension* (a heavier, separate repo). For most users who reach for
+the monochrome aesthetic, applying it editor-wide is what they want
+anyway.
+
+To add a theme other than One Dark / One Light, edit `THEMES` in
+`scripts/gen-theme.py` and re-run. Editing the snippet directly fails
+CI.
 
 ## Development
 
