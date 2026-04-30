@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# Build entry point for zed-lex. Same script local + CI.
+#
+# Zed extensions don't bundle binaries the way vscode/lexed do — the
+# published artifact IS the WASM, and the LSP binary is downloaded by
+# the extension's own code at runtime via Zed's sandboxed download API.
+# So "build" here means: compile to wasm32-wasip2, optionally package
+# the install-ready files into a tarball, optionally pre-fetch the
+# runtime dependencies for offline first-use.
+#
+# Usage:
+#   ./scripts/build               # release WASM only
+#   ./scripts/build --debug       # debug profile (faster compile)
+#   ./scripts/build --package     # also write zed-lex-<version>.tar.gz
+#   ./scripts/build --warm-cache  # also pre-download lex-lsp + grammar
+#                                 # (local dev convenience; no-op-able in CI)
+#
+# Flags compose: --package and --warm-cache can both be passed.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_DIR"
+
+PROFILE=release
+DO_PACKAGE=false
+DO_WARM=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --debug)       PROFILE=debug ;;
+        --release)     PROFILE=release ;;
+        --package)     DO_PACKAGE=true ;;
+        --warm-cache)  DO_WARM=true ;;
+        -h|--help)
+            sed -n '2,20p' "$0"
+            exit 0
+            ;;
+        *) echo "Unknown arg: $arg" >&2; exit 2 ;;
+    esac
+done
+
+WASM_TARGET=wasm32-wasip2
+WASM_OUT="target/$WASM_TARGET/$PROFILE/zed_lex.wasm"
+
+step() { echo; echo "═══ $* ═══"; }
+
+# --- Compile WASM -----------------------------------------------------------
+
+step "cargo build --target $WASM_TARGET ($PROFILE)"
+if [[ "$PROFILE" == release ]]; then
+    cargo build --release --target "$WASM_TARGET"
+else
+    cargo build --target "$WASM_TARGET"
+fi
+
+if [[ ! -f "$WASM_OUT" ]]; then
+    echo "expected $WASM_OUT after build but did not find it" >&2
+    exit 1
+fi
+SIZE=$(wc -c < "$WASM_OUT" | tr -d ' ')
+echo "  wrote $WASM_OUT ($SIZE bytes)"
+
+# --- Warm cache (optional) --------------------------------------------------
+#
+# Pre-download what our runtime code would otherwise fetch on first launch:
+#   - lex-lsp binary for the current platform, into Zed's per-extension
+#     working dir (so the resolve_binary cache hit fires on first open)
+#   - tree-sitter-lex source tarball at the pinned version, into
+#     /tmp/tree-sitter-lex (so the bats query suite has it offline)
+#
+# Skipped silently if --warm-cache isn't passed.
+
+current_platform_asset() {
+    local uname_s uname_m
+    uname_s=$(uname -s | tr '[:upper:]' '[:lower:]')
+    uname_m=$(uname -m | tr '[:upper:]' '[:lower:]')
+    case "$uname_s/$uname_m" in
+        darwin/arm64|darwin/aarch64) echo "lexd-lsp-aarch64-apple-darwin.tar.gz tar.gz lexd-lsp" ;;
+        darwin/x86_64)               echo "lexd-lsp-x86_64-apple-darwin.tar.gz tar.gz lexd-lsp" ;;
+        linux/aarch64|linux/arm64)   echo "lexd-lsp-aarch64-unknown-linux-gnu.tar.gz tar.gz lexd-lsp" ;;
+        linux/x86_64)                echo "lexd-lsp-x86_64-unknown-linux-gnu.tar.gz tar.gz lexd-lsp" ;;
+        mingw*|msys*|cygwin*|*windows*)
+            echo "lexd-lsp-x86_64-pc-windows-msvc.zip zip lexd-lsp.exe" ;;
+        *) return 1 ;;
+    esac
+}
+
+warm_cache() {
+    local lsp_version lsp_repo asset kind binary url tmpdir cache_dir
+    lsp_version=$(python3 -c "import json;print(json.load(open('shared/lex-deps.json'))['lexd-lsp'])")
+    lsp_repo=$(python3 -c "import json;print(json.load(open('shared/lex-deps.json'))['lexd-lsp-repo'])")
+
+    if ! info=$(current_platform_asset); then
+        echo "  skip lex-lsp warm-up: unknown platform $(uname -s)/$(uname -m)" >&2
+        return 0
+    fi
+    read -r asset kind binary <<<"$info"
+
+    cache_dir="lexd-lsp-$lsp_version"
+    if [[ -f "$cache_dir/$binary" ]]; then
+        echo "  ✓ lex-lsp $lsp_version already in $cache_dir/"
+    else
+        url="https://github.com/$lsp_repo/releases/download/$lsp_version/$asset"
+        tmpdir=$(mktemp -d -t zed-lex-build.XXXXXX)
+        echo "  fetching $url"
+        curl -fsSL -o "$tmpdir/$asset" "$url"
+        mkdir -p "$cache_dir"
+        if [[ "$kind" == "tar.gz" ]]; then
+            tar -xzf "$tmpdir/$asset" -C "$cache_dir"
+        else
+            (cd "$cache_dir" && unzip -oq "$tmpdir/$asset")
+        fi
+        rm -rf "$tmpdir"
+        if [[ ! -f "$cache_dir/$binary" ]]; then
+            echo "  ✗ extracted archive missing $binary" >&2
+            return 1
+        fi
+        chmod +x "$cache_dir/$binary" 2>/dev/null || true
+        echo "  ✓ wrote $cache_dir/$binary"
+    fi
+
+    # Grammar warm-up: same path the bats helper uses, so subsequent
+    # test runs are offline.
+    local ts_version ts_repo ts_dir
+    ts_version=$(python3 -c "import json;print(json.load(open('shared/lex-deps.json'))['tree-sitter'])")
+    ts_repo=$(python3 -c "import json;d=json.load(open('shared/lex-deps.json'));print(d.get('tree-sitter-repo','lex-fmt/tree-sitter-lex'))")
+    ts_dir="/tmp/tree-sitter-lex"
+    if [[ -f "$ts_dir/src/parser.c" ]]; then
+        echo "  ✓ tree-sitter-lex already in $ts_dir/"
+    else
+        local url="https://github.com/$ts_repo/releases/download/$ts_version/tree-sitter.tar.gz"
+        echo "  fetching $url"
+        mkdir -p "$ts_dir"
+        curl -fsSL "$url" | tar -xzf - -C "$ts_dir"
+        echo "  ✓ extracted to $ts_dir"
+    fi
+}
+
+if $DO_WARM; then
+    step "warm cache (lex-lsp + tree-sitter-lex)"
+    warm_cache
+fi
+
+# --- Package (optional) -----------------------------------------------------
+#
+# Build a self-contained tarball: the WASM, source, queries, manifests,
+# and lex-deps.json. Zed normally rebuilds on install — including the
+# WASM is for sideload / offline install. The source is included so
+# users can rebuild themselves.
+
+if $DO_PACKAGE; then
+    step "package zed-lex.tar.gz"
+    VERSION=$(python3 -c "import tomllib;print(tomllib.load(open('extension.toml','rb'))['version'])")
+    DIST="dist"
+    rm -rf "$DIST"
+    mkdir -p "$DIST"
+
+    cp extension.toml "$DIST/"
+    cp Cargo.toml Cargo.lock "$DIST/"
+    cp LICENSE README.md CHANGELOG.md "$DIST/"
+    cp -R src "$DIST/"
+    cp -R languages "$DIST/"
+    cp -R shared "$DIST/"
+    cp "$WASM_OUT" "$DIST/extension.wasm"
+
+    TARBALL="zed-lex-$VERSION.tar.gz"
+    tar -czf "$TARBALL" -C "$DIST" .
+    echo "  wrote $TARBALL ($(wc -c <"$TARBALL" | tr -d ' ') bytes)"
+    rm -rf "$DIST"
+fi
+
+echo
+echo "RESULT: PASS"

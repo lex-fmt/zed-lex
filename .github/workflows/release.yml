@@ -1,0 +1,90 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Tag-triggered release. Mirrors the convention in tree-sitter-lex /
+# lex / nvim: scripts/create-release tags with annotated release notes;
+# this workflow builds the artifact and attaches it to the GitHub
+# release using those notes as the body.
+
+jobs:
+  build:
+    name: Build zed-lex artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: zed-lex-wasm
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: scripts/test-all (full suite must pass before release)
+        run: ./scripts/test-all
+
+      - name: scripts/build --package (produces zed-lex-<version>.tar.gz)
+        run: ./scripts/build --package
+
+      - name: Locate artifact
+        id: artifact
+        run: |
+          TARBALL=$(ls zed-lex-*.tar.gz | head -n1)
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "Built: $TARBALL ($(wc -c <"$TARBALL" | tr -d ' ') bytes)"
+
+      - name: Upload artifact for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: zed-lex-tarball
+          path: ${{ steps.artifact.outputs.tarball }}
+
+  release:
+    name: Create GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read release notes from tag annotation
+        id: notes
+        run: |
+          BODY=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            echo "$BODY"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zed-lex-tarball
+          path: artifacts
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          body: ${{ steps.notes.outputs.body }}

@@ -4,3 +4,8 @@
 *.wasm
 .DS_Store
 .padz
+
+# build outputs
+/dist
+/zed-lex-*.tar.gz
+/lexd-lsp-v*

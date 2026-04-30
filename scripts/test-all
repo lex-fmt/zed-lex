@@ -52,9 +52,11 @@ if ! cargo clippy --release --target "$WASM_TARGET" -- -D warnings; then
     FAILED=true
 fi
 
-# --- 3. cargo build (wasm target) ---
-step "cargo build --release --target $WASM_TARGET"
-if ! cargo build --release --target "$WASM_TARGET"; then
+# --- 3. build the publishable WASM via scripts/build ---
+# scripts/build is the single entry point for "compile to wasm32-wasip2".
+# Calling it here (rather than `cargo build` directly) keeps build logic
+# in one place and exercises the same code path the release workflow uses.
+if ! "$SCRIPT_DIR/build"; then
     FAILED=true
 fi
 

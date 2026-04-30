@@ -82,6 +82,47 @@ The bats suite asserts the file matches the generator output.
 python3 scripts/gen-injections.py
 ```
 
+### Building
+
+`scripts/build` is the single entry point for "compile this extension".
+The same script runs locally, in `scripts/test-all`, and in the release
+workflow.
+
+```sh
+./scripts/build               # release WASM (the only thing that ships)
+./scripts/build --debug       # debug profile (faster compile, larger WASM)
+./scripts/build --package     # also write zed-lex-<version>.tar.gz
+./scripts/build --warm-cache  # also pre-fetch lex-lsp + grammar so first
+                              # use of the dev extension is offline
+```
+
+Why this differs from vscode/lexed: a Zed extension is a tarball of
+source that Zed's Marketplace builds at install time, plus runtime
+binary downloads. There is no upload-this-binary step. Bundling
+prebuilt binaries into platform-specific packages — the way `vscode`
+ships 5 VSIXes — is not how Zed extensions reach users.
+
+`--package` is for sideload / offline install (anyone who wants a
+prebuilt extension without going through Marketplace can untar it and
+`zed: install dev extension` the result).
+
+### Releases
+
+Releases follow the same pattern as `tree-sitter-lex`, `lex`, and
+`nvim`: write release notes in `UNRELEASED.md` as work happens, then
+run `scripts/create-release vX.Y.Z` to:
+
+1. Sync the version in `extension.toml` and `Cargo.toml`
+2. Prepend the notes to `CHANGELOG.md`
+3. Reset `UNRELEASED.md`
+4. Re-run `scripts/test-all --quick`
+5. Commit, create an annotated tag with the notes, push
+
+The tag push triggers `.github/workflows/release.yml`, which runs the
+full `scripts/test-all`, then `scripts/build --package`, and attaches
+the resulting `zed-lex-<version>.tar.gz` to the GitHub release with the
+tag annotation as the release body.
+
 [bats]: https://github.com/bats-core/bats-core
 
 After editing the extension, reinstall the dev extension in Zed (the
