@@ -40,6 +40,26 @@ Override the language server binary in `settings.json`:
 }
 ```
 
+### Lex Monochrome theme
+
+A 4-tier grayscale syntax-override scheme — same look as the Lex
+nvim/vscode plugins, scaled down to what Zed's per-language overrides
+can express (color + font weight/style; per-token backgrounds and
+underlines are not honoured). Pick the file matching your Zed theme's
+appearance and merge it into your `settings.json`:
+
+- [`themes/lex-monochrome.dark.json`](themes/lex-monochrome.dark.json)
+- [`themes/lex-monochrome.light.json`](themes/lex-monochrome.light.json)
+
+Each file is shaped as a complete `languages.Lex` block ready to merge.
+If you switch between dark and light Zed themes, swap the snippet too —
+Zed's `experimental.theme_overrides` doesn't auto-switch on appearance.
+
+The colour table mirrors the canonical 4-tier intensity map shared
+across the editor fleet (memory: theme unification project). Editing
+the snippet directly fails CI; update `scripts/gen-theme.py` and
+re-run.
+
 ## Development
 
 Prerequisites: Rust + the WASM target, Node (for `tree-sitter-cli`),

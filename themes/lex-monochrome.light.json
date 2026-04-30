@@ -1,0 +1,57 @@
+{
+  "languages": {
+    "Lex": {
+      "experimental.theme_overrides": {
+        "syntax": {
+          "title": {
+            "color": "#000000",
+            "font_weight": 700
+          },
+          "property": {
+            "color": "#000000",
+            "font_style": "italic"
+          },
+          "text.literal": {
+            "color": "#000000"
+          },
+          "string.special": {
+            "color": "#b3b3b3"
+          },
+          "punctuation.list_marker": {
+            "color": "#808080",
+            "font_style": "italic"
+          },
+          "emphasis": {
+            "color": "#000000",
+            "font_style": "italic"
+          },
+          "emphasis.strong": {
+            "color": "#000000",
+            "font_weight": 700
+          },
+          "string.escape": {
+            "color": "#b3b3b3"
+          },
+          "punctuation.special": {
+            "color": "#b3b3b3"
+          },
+          "comment": {
+            "color": "#b3b3b3"
+          },
+          "link_text": {
+            "color": "#808080"
+          },
+          "link_uri": {
+            "color": "#808080"
+          },
+          "constant": {
+            "color": "#808080"
+          },
+          "punctuation.delimiter": {
+            "color": "#b3b3b3"
+          }
+        }
+      }
+    }
+  }
+}

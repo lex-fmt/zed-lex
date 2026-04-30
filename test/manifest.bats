@@ -77,3 +77,10 @@ load 'helpers'
 @test "injections.scm matches scripts/gen-injections.py" {
     python3 "$REPO_DIR/scripts/gen-injections.py" --check
 }
+
+# themes/lex-monochrome.{dark,light}.json are generated from gen-theme.py.
+# Keeps the canonical 4-tier color map and Zed capture-name mapping in
+# one place; touching the snippets directly fails this test.
+@test "themes/lex-monochrome.{dark,light}.json match scripts/gen-theme.py" {
+    python3 "$REPO_DIR/scripts/gen-theme.py" --check
+}
