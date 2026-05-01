@@ -78,31 +78,33 @@ def load_canonical() -> dict:
     return json.loads(CANONICAL.read_text())
 
 
-def render_capture(token: dict, palette: dict, backgrounds: dict, appearance: str) -> dict:
+def render_capture(token: dict, palette: dict, appearance: str) -> dict:
+    # Note: the canonical token may carry a `background` hint, but Zed's
+    # syntax-override schema doesn't support backgrounds (or underlines)
+    # on the syntax-capture path, so we silently drop those here.
+    # Underlines on link captures come from Zed's link styling, not from
+    # theme_overrides.
     entry: dict = {"color": palette[token["intensity"]][appearance]}
     styles = token.get("styles", [])
     if "italic" in styles:
         entry["font_style"] = "italic"
     if "bold" in styles:
         entry["font_weight"] = BOLD
-    # Zed's syntax override schema does not support background or underline
-    # on the syntax-capture path. Underlines on link captures come from
-    # Zed's link styling, not from theme_overrides.
     return entry
 
 
 def render_syntax(canonical: dict, appearance: str) -> dict:
     palette = canonical["intensities"]
-    backgrounds = canonical.get("backgrounds", {})
     tokens = canonical["tokens"]
     syntax = {}
     for capture, token_id in CAPTURE_TO_TOKEN.items():
         if token_id not in tokens:
             raise SystemExit(
                 f"FAIL: gen-theme.py CAPTURE_TO_TOKEN references unknown token '{token_id}' "
-                f"(for capture '{capture}'). Update the canonical theme.json or fix the mapping."
+                f"(for capture '{capture}'). Update comms/shared/theming/lex-theme.json "
+                f"or fix the mapping in this script."
             )
-        syntax[capture] = render_capture(tokens[token_id], palette, backgrounds, appearance)
+        syntax[capture] = render_capture(tokens[token_id], palette, appearance)
     return syntax
 
 
