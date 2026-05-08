@@ -18,7 +18,7 @@ jobs:
     name: Build zed-lex artifact
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -65,7 +65,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # fetch-depth: 0 alone gets the tag ref but not always the
           # annotated-tag object (the bit `%(contents)` reads from).
