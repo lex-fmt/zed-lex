@@ -55,7 +55,7 @@ jobs:
           echo "Built: $TARBALL ($(wc -c <"$TARBALL" | tr -d ' ') bytes)"
 
       - name: Upload artifact for release job
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zed-lex-tarball
           path: ${{ steps.artifact.outputs.tarball }}
