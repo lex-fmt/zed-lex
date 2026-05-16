@@ -27,7 +27,7 @@ cd "${REPO_ROOT}"
 # fail until this runs. Best-effort: a missing remote shouldn't block
 # the rest of setup.
 if [ -f .gitmodules ]; then
-  git submodule update --init --recursive 2>/dev/null || true
+  git submodule update --init --recursive --depth 1 2>/dev/null || true
 fi
 
 # 1. Project dep cache — pick the right tool based on lockfile / manifest.
@@ -76,7 +76,8 @@ fi
 # Repos that ship a hand-rolled scripts/pre-commit (no lefthook.yml) need
 # the symlink wired manually — same convention the README documents.
 if [ -f scripts/pre-commit ] && [ ! -f lefthook.yml ] && [ ! -e .git/hooks/pre-commit ]; then
-  ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+  ln -sf ../../scripts/pre-commit .git/hooks/pre-commit \
+    || echo "warning: failed to wire pre-commit hook" >&2
 fi
 
 exit 0
