@@ -21,6 +21,15 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "${REPO_ROOT}"
 
+# 0. Submodules. The cloud orchestrator does a shallow clone without
+# --recurse-submodules; any tests/scripts that read submodule paths
+# (e.g. the theme generator reads comms/shared/theming/lex-theme.json)
+# fail until this runs. Best-effort: a missing remote shouldn't block
+# the rest of setup.
+if [ -f .gitmodules ]; then
+  git submodule update --init --recursive 2>/dev/null || true
+fi
+
 # 1. Project dep cache — pick the right tool based on lockfile / manifest.
 
 # Rust: cargo fetch with --locked so we don't silently mutate Cargo.lock
@@ -28,6 +37,13 @@ cd "${REPO_ROOT}"
 # the agent's later cargo build/test surfaces the real issue.
 if [ -f Cargo.toml ] && command -v cargo >/dev/null 2>&1; then
   cargo fetch --locked --quiet || true
+fi
+
+# Zed extensions compile to wasm32-wasip2. The cloud env ships only the
+# host triple, so the target needs to be added before any cargo build.
+# extension.toml is the canonical Zed-extension marker.
+if [ -f extension.toml ] && command -v rustup >/dev/null 2>&1; then
+  rustup target add wasm32-wasip2 >/dev/null 2>&1 || true
 fi
 
 # Node-based (npm / yarn / pnpm). Skip if node_modules already exists
@@ -55,6 +71,12 @@ if [ -f lefthook.yml ] && command -v lefthook >/dev/null 2>&1; then
   if ! lefthook install; then
     echo "warning: lefthook install failed — pre-commit hook NOT wired" >&2
   fi
+fi
+
+# Repos that ship a hand-rolled scripts/pre-commit (no lefthook.yml) need
+# the symlink wired manually — same convention the README documents.
+if [ -f scripts/pre-commit ] && [ ! -f lefthook.yml ] && [ ! -e .git/hooks/pre-commit ]; then
+  ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
 fi
 
 exit 0
