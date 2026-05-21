@@ -202,6 +202,28 @@ references blue:
 }
 ```
 
+## Spell checking
+
+Zed does not yet ship a built-in prose spell checker; the de-facto
+extension is [Codebook][codebook], a tree-sitter-driven spell checker
+that runs as a language server.
+
+This repo ships a reference query for codebook at
+`codebook/queries/lex.scm` mirroring the
+[canonical `@spell` / `@nospell` policy from `tree-sitter-lex`][ts-lex] —
+all prose checked (titles, paragraphs, list items, definitions, table
+cells, verbatim subjects, annotation block bodies, trailing
+descriptors), labels and verbatim bodies skipped.
+
+Codebook does not currently support user-supplied per-language queries
+via config, so the file is staged here pending upstream contribution.
+Once it lands in [`blopker/codebook`][codebook] (or you build codebook
+from a fork with this query patched in) installing codebook from the
+Zed extension marketplace is enough — Zed picks it up as a language
+server and applies it to `.lex` files automatically.
+
+[codebook]: https://github.com/blopker/codebook
+
 ## Troubleshooting
 
 **File opens as Plain Text, not Lex.**
