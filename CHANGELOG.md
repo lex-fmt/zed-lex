@@ -20,9 +20,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   `gen-theme.py` ↔ `themes/lex-monochrome.json` sync.
 - Release pipeline migrated to
   `arthur-debert/release/.github/workflows/zed-extension.yml@v1`.
-  Trigger contract is now `workflow_dispatch` (matches the cross-repo
-  cascade-handler pattern). `scripts/create-release` + tag-triggered
-  `release.yml` retired.
+  Trigger contract is now `workflow_dispatch` (matches the convention
+  used by other release/ stacks). `scripts/create-release` +
+  tag-triggered `release.yml` retired.
+- Release bundle filename changed from `zed-lex-<version>.tar.gz` to
+  `lex-<version>.tar.gz`. The canonical workflow derives the name
+  from `extension.toml`'s `id` field. Update any downstream pins
+  (manual fetchers, install docs) to the new path.
+- `bin/build` adopted as the canonical release-build entry point
+  (thin wrapper around `cargo build --release --target wasm32-wasip2`
+  with upfront target-install checks). `scripts/build` retained for
+  local `--debug` / `--package` / `--warm-cache` modes.
 
 ## [0.1.0] - 2026-04-30
 
@@ -49,3 +57,6 @@ Initial Zed extension for the Lex document format.
   and CI. `scripts/test-all` is the single source of truth.
 - `scripts/build` produces the publishable WASM and (with `--package`)
   a `zed-lex-<version>.tar.gz` for sideload / offline install.
+
+[Unreleased]: https://github.com/lex-fmt/zed-lex/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/lex-fmt/zed-lex/releases/tag/v0.1.0

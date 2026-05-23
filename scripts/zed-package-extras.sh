@@ -25,6 +25,11 @@ set -euo pipefail
 
 : "${BUNDLE_DIR:?BUNDLE_DIR must be set by the canonical workflow}"
 
+if [ ! -d "${BUNDLE_DIR}" ]; then
+    echo "::error::BUNDLE_DIR=${BUNDLE_DIR} is not a directory (or doesn't exist)"
+    exit 1
+fi
+
 if [ ! -d shared ]; then
     echo "::error::shared/ directory missing at repo root — expected shared/lex-deps.json"
     exit 1
@@ -35,6 +40,11 @@ if [ ! -f shared/lex-deps.json ]; then
     exit 1
 fi
 
-cp -R shared "${BUNDLE_DIR}/"
+# Copy contents rather than the directory itself so the operation is
+# idempotent: if BUNDLE_DIR/shared already exists (e.g. a reused build
+# dir), `cp -R shared dest/` nests into dest/shared/shared. The
+# `shared/.` + explicit dest dir avoids that.
+mkdir -p "${BUNDLE_DIR}/shared"
+cp -R shared/. "${BUNDLE_DIR}/shared/"
 echo "Copied shared/ into bundle:"
 ls -la "${BUNDLE_DIR}/shared/"
