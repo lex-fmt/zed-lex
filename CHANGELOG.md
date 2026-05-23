@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-23
+
+
 - Lex Monochrome: 4-tier grayscale syntax overrides, generated from
   `scripts/gen-theme.py` into `themes/lex-monochrome.json`. Ships
   `theme_overrides` for One Dark and One Light keyed by theme name so
@@ -31,7 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   (thin wrapper around `cargo build --release --target wasm32-wasip2`
   with upfront target-install checks). `scripts/build` retained for
   local `--debug` / `--package` / `--warm-cache` modes.
-
 ## [0.1.0] - 2026-04-30
 
 Initial Zed extension for the Lex document format.
