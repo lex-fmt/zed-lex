@@ -1,4 +1,9 @@
-name: Zed Extension CI
+name: CI
+
+# Thin caller of arthur-debert/release/.github/workflows/zed-extension-ci.yml.
+#
+# All toolchain + cache + invocation logic lives there. This file carries
+# the bindings (which extras to install, which umbrella check to run).
 
 on:
   push:
@@ -6,40 +11,24 @@ on:
   pull_request:
     branches: [main]
 
-# CI invokes scripts/test-all — the same script the pre-commit hook
-# runs. Keeping CI thin (just installing prerequisites) means there is
-# only one place to add or change a check, and the failure mode is the
-# same locally and remotely.
+permissions:
+  contents: read
 
 jobs:
-  test:
-    name: scripts/test-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip2
-          components: clippy, rustfmt
-
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: zed-lex-wasm
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Install bats
-        run: sudo apt-get update && sudo apt-get install -y bats
-
-      # Python 3 ships on ubuntu-latest with tomllib (3.11+).
-
-      - name: scripts/test-all
-        run: ./scripts/test-all
+  ci:
+    uses: arthur-debert/release/.github/workflows/zed-extension-ci.yml@v1
+    with:
+      # JS tooling drives parts of the umbrella check (e.g. theme-gen,
+      # highlights validators).
+      node: true
+      # bats is the test runner.
+      bats: true
+      # Default check-command is `bin/check` — this repo's umbrella
+      # entry point is `scripts/test-all` (matches the local pre-commit
+      # gate); take-iii bin/<verb> migration is a separate item.
+      check-command: ./scripts/test-all
+      # Submodule `comms` carries shared content.
+      submodules: true
+      # Match the prior bespoke workflow's cache key so existing
+      # cache entries continue to hit.
+      cache-shared-key: zed-lex-wasm
