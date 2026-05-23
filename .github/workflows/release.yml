@@ -1,110 +1,40 @@
 name: Release
 
+# Thin caller of arthur-debert/release/.github/workflows/zed-extension.yml.
+#
+# All build + bundle + publish logic lives there. This file carries the
+# bindings (version input, secrets) and the per-consumer overrides.
+#
+# Replaces the prior hand-rolled, tag-push-triggered workflow. New
+# trigger contract is workflow_dispatch — matching the convention
+# used by other release/ stacks (nvim-plugin, tree-sitter, rust-cli).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.1.1 or 1.0.0-rc.1). No leading v.'
+        required: true
+        type: string
+
 permissions:
   contents: write
 
-on:
-  push:
-    tags:
-      - 'v*'
-
-# Tag-triggered release. Mirrors the convention in tree-sitter-lex /
-# lex / nvim: scripts/create-release tags with annotated release notes;
-# this workflow builds the artifact and attaches it to the GitHub
-# release using those notes as the body.
-
 jobs:
-  build:
-    name: Build zed-lex artifact
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip2
-          components: clippy, rustfmt
-
-      - name: Cache cargo registry + target
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: zed-lex-wasm
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Install bats
-        run: sudo apt-get update && sudo apt-get install -y bats
-
-      - name: scripts/test-all (full suite must pass before release)
-        run: ./scripts/test-all
-
-      - name: scripts/build --package (produces zed-lex-<version>.tar.gz)
-        run: ./scripts/build --package
-
-      - name: Locate artifact
-        id: artifact
-        run: |
-          TARBALL=$(ls zed-lex-*.tar.gz | head -n1)
-          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
-          echo "Built: $TARBALL ($(wc -c <"$TARBALL" | tr -d ' ') bytes)"
-
-      - name: Upload artifact for release job
-        uses: actions/upload-artifact@v7
-        with:
-          name: zed-lex-tarball
-          path: ${{ steps.artifact.outputs.tarball }}
-
   release:
-    name: Create GitHub release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          # fetch-depth: 0 alone gets the tag ref but not always the
-          # annotated-tag object (the bit `%(contents)` reads from).
-          # fetch-tags: true forces tag objects to be fetched so
-          # `git tag -l --format='%(contents)'` returns the body.
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Read release notes from tag annotation
-        id: notes
-        run: |
-          # Belt and braces: dereference the annotation directly via
-          # cat-file in case --format='%(contents)' returns empty
-          # (would happen if the tag arrived as lightweight).
-          BODY=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME")
-          if [[ -z "$BODY" ]]; then
-              BODY=$(git cat-file -p "$GITHUB_REF_NAME" 2>/dev/null \
-                  | sed -n '/^$/,$p' | tail -n +2)
-          fi
-          if [[ -z "$BODY" ]]; then
-              echo "::warning::Empty release notes for $GITHUB_REF_NAME"
-              BODY="Release $GITHUB_REF_NAME"
-          fi
-          echo "Release body ($(echo "$BODY" | wc -l) lines):"
-          echo "$BODY" | head -5
-          {
-            echo "body<<RELEASE_NOTES_EOF"
-            echo "$BODY"
-            echo "RELEASE_NOTES_EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: zed-lex-tarball
-          path: artifacts
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: artifacts/*
-          body: ${{ steps.notes.outputs.body }}
+    uses: arthur-debert/release/.github/workflows/zed-extension.yml@v1
+    with:
+      version: ${{ inputs.version }}
+      # extension-name derives from extension.toml `id` (= "lex"),
+      # producing lex-<version>.tar.gz. Override only if convention breaks.
+      # extension-name: lex
+      # cargo-wasm-name derives from Cargo.toml `name` (= "zed_lex"),
+      # producing zed_lex.wasm.
+      # cargo-wasm-name: zed_lex.wasm
+      submodules: true
+    secrets:
+      # lex-fmt is cross-org from arthur-debert/release; `inherit`
+      # would not propagate. Pass RELEASE_TOKEN explicitly so the
+      # bot can push the version-bump commit + tag past the
+      # ruleset-protected default branch.
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}

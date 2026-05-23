@@ -1,6 +1,30 @@
 # Changelog
 
-## v0.1.0 (2026-04-30)
+All notable changes to this project are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/).
+
+## [Unreleased]
+
+- Lex Monochrome: 4-tier grayscale syntax overrides, generated from
+  `scripts/gen-theme.py` into `themes/lex-monochrome.json`. Ships
+  `theme_overrides` for One Dark and One Light keyed by theme name so
+  Zed auto-applies the right colours when system appearance flips.
+- Lex-only scope via dual-tagged captures in `languages/lex/highlights.scm`:
+  every overridable capture is emitted as `@x @x.lex`. Zed picks the
+  rightmost first, so theme_overrides keyed on `title.lex` / `comment.lex`
+  etc. only reach Lex files; other languages keep their base styling.
+  (Earlier per-language `experimental.theme_overrides` form is rejected
+  by Zed's settings schema; the supported path is top-level
+  `theme_overrides` keyed by theme name, hence this dual-capture trick.)
+- New bats tests guard the dual-tagging regression and the
+  `gen-theme.py` ↔ `themes/lex-monochrome.json` sync.
+- Release pipeline migrated to
+  `arthur-debert/release/.github/workflows/zed-extension.yml@v1`.
+  Trigger contract is now `workflow_dispatch` (matches the cross-repo
+  cascade-handler pattern). `scripts/create-release` + tag-triggered
+  `release.yml` retired.
+
+## [0.1.0] - 2026-04-30
 
 Initial Zed extension for the Lex document format.
 
@@ -25,5 +49,3 @@ Initial Zed extension for the Lex document format.
   and CI. `scripts/test-all` is the single source of truth.
 - `scripts/build` produces the publishable WASM and (with `--package`)
   a `zed-lex-<version>.tar.gz` for sideload / offline install.
-
-<!-- New entries are prepended by scripts/create-release. -->
