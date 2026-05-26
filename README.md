@@ -375,20 +375,25 @@ distribution path.
 
 ### Releases
 
-Same pattern as `tree-sitter-lex`, `lex`, `nvim`. Write release notes
-in `UNRELEASED.md` as work happens, then:
+Same pattern as `tree-sitter-lex`, `lex`, `nvim`. Add changelog
+fragments under `CHANGELOG/` as work happens, then trigger the release
+workflow:
 
 ```sh
-./scripts/create-release v0.2.0
+# Cut the changelog (merges fragments into CHANGELOG/<version>.md)
+bin/changelog-cut 0.2.0
+
+# Dispatch the release workflow (builds, tags, publishes)
+gh workflow run release.yml -f version=0.2.0
 ```
 
-That syncs the version in `extension.toml` and `Cargo.toml`, prepends
-the notes to `CHANGELOG.md`, resets `UNRELEASED.md`, re-runs
-`app-bin/test-all --quick`, and creates an annotated tag with the
-notes. The tag push triggers `.github/workflows/release.yml`, which
-runs the full test suite, builds `zed-lex-<version>.tar.gz` via
-`app-bin/build --package`, and attaches it to the GitHub release with
-the tag annotation as the body.
+The release workflow
+(`.github/workflows/release.yml`) calls the shared
+`arthur-debert/release` zed-extension workflow, which bumps the
+version in `extension.toml` and `Cargo.toml`, runs the full test
+suite, builds `zed-lex-<version>.tar.gz` via `app-bin/build
+--package`, creates an annotated tag, and attaches the artifact to
+the GitHub release.
 
 ## Related
 
