@@ -23,6 +23,10 @@ jobs:
       node: true
       # bats is the test runner.
       bats: true
+      # app-bin/test-all runs bats files individually (bats 1.10 has a
+      # tmpdir race when given a directory). Kept until bin/check-tests
+      # handles this upstream.
+      check-command: ./app-bin/test-all
       # Submodule `comms` carries shared content.
       submodules: true
       # Match the prior bespoke workflow's cache key so existing
