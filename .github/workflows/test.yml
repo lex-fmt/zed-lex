@@ -23,10 +23,6 @@ jobs:
       node: true
       # bats is the test runner.
       bats: true
-      # Default check-command is `bin/check` — this repo's umbrella
-      # entry point is `app-bin/test-all` (matches the local pre-commit
-      # gate); take-iii bin/<verb> migration is a separate item.
-      check-command: ./app-bin/test-all
       # Submodule `comms` carries shared content.
       submodules: true
       # Match the prior bespoke workflow's cache key so existing
