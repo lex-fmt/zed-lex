@@ -23,9 +23,9 @@ jobs:
       node: true
       # bats is the test runner.
       bats: true
-      # Default check-command is `bin/check` — this repo's umbrella
-      # entry point is `app-bin/test-all` (matches the local pre-commit
-      # gate); take-iii bin/<verb> migration is a separate item.
+      # app-bin/test-all runs bats files individually (bats 1.10 has a
+      # tmpdir race when given a directory). Kept until bin/check-tests
+      # handles this upstream.
       check-command: ./app-bin/test-all
       # Submodule `comms` carries shared content.
       submodules: true

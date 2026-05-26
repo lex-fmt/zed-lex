@@ -52,11 +52,11 @@ if ! cargo clippy --release --target "$WASM_TARGET" -- -D warnings; then
     FAILED=true
 fi
 
-# --- 3. build the publishable WASM via app-bin/build ---
-# app-bin/build is the single entry point for "compile to wasm32-wasip2".
+# --- 3. build the publishable WASM via bin/build ---
+# bin/build is the canonical entry point for "compile to wasm32-wasip2".
 # Calling it here (rather than `cargo build` directly) keeps build logic
 # in one place and exercises the same code path the release workflow uses.
-if ! "$SCRIPT_DIR/build"; then
+if ! "$REPO_DIR/bin/build"; then
     FAILED=true
 fi
 
