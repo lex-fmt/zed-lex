@@ -166,7 +166,7 @@ degradation.
 overrides for One Dark and One Light because they're Zed's defaults
 and what most "system mode" setups use. To add Ayu, Gruvbox,
 Andromeda, etc., edit `THEMES` in
-[`scripts/gen-theme.py`](scripts/gen-theme.py) and re-run. The
+[`app-bin/gen-theme.py`](app-bin/gen-theme.py) and re-run. The
 generator emits the new entries; the bats suite asserts the snippet
 matches the generator output, so out-of-sync edits fail CI.
 
@@ -313,15 +313,15 @@ Prerequisites: Rust + the WASM target, Node (for `tree-sitter-cli`),
 ```sh
 rustup target add wasm32-wasip2
 brew install bats-core            # macOS; on Linux: apt-get install -y bats
-./scripts/test-all                # full check (fmt, clippy, build, manifest, queries)
-./scripts/test-all --quick        # skip the query bats suite (no network needed)
+./app-bin/test-all                # full check (fmt, clippy, build, manifest, queries)
+./app-bin/test-all --quick        # skip the query bats suite (no network needed)
 ```
 
-`scripts/test-all` is the single source of truth for quality checks.
+`app-bin/test-all` is the single source of truth for quality checks.
 Pre-commit hook and CI both invoke it. Install the hook:
 
 ```sh
-ln -sf ../../scripts/pre-commit .git/hooks/pre-commit
+ln -sf ../../app-bin/pre-commit .git/hooks/pre-commit
 ```
 
 The hook runs `--quick` (skips query bats — needs sibling
@@ -341,28 +341,28 @@ bats --filter "lexd-lsp"   test/manifest.bats
 ### Adding an injection language
 
 `languages/lex/injections.scm` is generated. Edit `LANGUAGES` in
-[`scripts/gen-injections.py`](scripts/gen-injections.py) and re-run.
+[`app-bin/gen-injections.py`](app-bin/gen-injections.py) and re-run.
 The bats suite asserts the file matches generator output, so
 hand-edits to the .scm file fail CI.
 
 ```sh
-python3 scripts/gen-injections.py
+python3 app-bin/gen-injections.py
 ```
 
 ### Adding / customising themes
 
 Edit `THEMES` or `SYNTAX_OVERRIDES` in
-[`scripts/gen-theme.py`](scripts/gen-theme.py) and re-run.
+[`app-bin/gen-theme.py`](app-bin/gen-theme.py) and re-run.
 `themes/lex-monochrome.json` regenerates; the bats sync test runs on
 every commit.
 
 ### Building
 
 ```sh
-./scripts/build               # release WASM (the only thing that ships)
-./scripts/build --debug       # debug profile (faster compile)
-./scripts/build --package     # also write zed-lex-<version>.tar.gz
-./scripts/build --warm-cache  # also pre-fetch lex-lsp + grammar so the
+./app-bin/build               # release WASM (the only thing that ships)
+./app-bin/build --debug       # debug profile (faster compile)
+./app-bin/build --package     # also write zed-lex-<version>.tar.gz
+./app-bin/build --warm-cache  # also pre-fetch lex-lsp + grammar so the
                               # next dev-extension install is offline
 ```
 
@@ -384,10 +384,10 @@ in `UNRELEASED.md` as work happens, then:
 
 That syncs the version in `extension.toml` and `Cargo.toml`, prepends
 the notes to `CHANGELOG.md`, resets `UNRELEASED.md`, re-runs
-`scripts/test-all --quick`, and creates an annotated tag with the
+`app-bin/test-all --quick`, and creates an annotated tag with the
 notes. The tag push triggers `.github/workflows/release.yml`, which
 runs the full test suite, builds `zed-lex-<version>.tar.gz` via
-`scripts/build --package`, and attaches it to the GitHub release with
+`app-bin/build --package`, and attaches it to the GitHub release with
 the tag annotation as the body.
 
 ## Related

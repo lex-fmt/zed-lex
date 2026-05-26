@@ -35,6 +35,7 @@ pre-commit:
         - "**/*.{sh,bash}"
         - "scripts/**"
         - "bin/**"
+        - "app-bin/**"
       exclude:
         - "**/*.{md,json,yaml,yml,toml,py,rb,rs,js,ts,mjs,cjs,html,css,txt,lock}"
       run: >-
