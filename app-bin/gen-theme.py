@@ -138,7 +138,7 @@ def main() -> int:
         if actual != expected:
             print(
                 f"FAIL: {TARGET.relative_to(REPO_DIR)} out of sync.\n"
-                f"      Run: python3 scripts/gen-theme.py",
+                f"      Run: python3 app-bin/gen-theme.py",
                 file=sys.stderr,
             )
             return 1

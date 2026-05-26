@@ -9,10 +9,10 @@
 # runtime dependencies for offline first-use.
 #
 # Usage:
-#   ./scripts/build               # release WASM only
-#   ./scripts/build --debug       # debug profile (faster compile)
-#   ./scripts/build --package     # also write zed-lex-<version>.tar.gz
-#   ./scripts/build --warm-cache  # also pre-download lex-lsp + grammar
+#   ./app-bin/build               # release WASM only
+#   ./app-bin/build --debug       # debug profile (faster compile)
+#   ./app-bin/build --package     # also write zed-lex-<version>.tar.gz
+#   ./app-bin/build --warm-cache  # also pre-download lex-lsp + grammar
 #                                 # (local dev convenience; no-op-able in CI)
 #
 # Flags compose: --package and --warm-cache can both be passed.

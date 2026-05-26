@@ -74,13 +74,13 @@ load 'helpers'
 # injections.scm is mechanically derived from gen-injections.py to keep
 # the (language × content-type) matrix consistent. If you edit
 # injections.scm directly this test reminds you to update the script.
-@test "injections.scm matches scripts/gen-injections.py" {
-    python3 "$REPO_DIR/scripts/gen-injections.py" --check
+@test "injections.scm matches app-bin/gen-injections.py" {
+    python3 "$REPO_DIR/app-bin/gen-injections.py" --check
 }
 
 # themes/lex-monochrome.json is generated from gen-theme.py. Keeps the
 # canonical 4-tier color map and Zed capture-name mapping in one place;
 # touching the snippet directly fails this test.
-@test "themes/lex-monochrome.json matches scripts/gen-theme.py" {
-    python3 "$REPO_DIR/scripts/gen-theme.py" --check
+@test "themes/lex-monochrome.json matches app-bin/gen-theme.py" {
+    python3 "$REPO_DIR/app-bin/gen-theme.py" --check
 }
