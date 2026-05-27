@@ -26,22 +26,34 @@ if [ -x scripts/check-tests ]; then
     exec scripts/check-tests "$@"
 fi
 
-run_bats_dir() {
-    local dir="$1"
-    shift
+require_bats() {
     if ! command -v bats >/dev/null 2>&1; then
         echo "::error::bats not installed. Run \`brew install bats-core\` to enable extension tests." >&2
         exit 1
     fi
-    echo "Running bats $dir ..."
-    bats "$dir" "$@"
 }
 
-if find test -maxdepth 2 -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
-    run_bats_dir test "$@"
+# Enumerate individual .bats files instead of passing the directory to
+# bats. Directory mode in bats 1.10 has a tmpdir race when tests run in
+# parallel; listing files explicitly avoids the issue.
+run_bats_files() {
+    local dir="$1"
+    shift
+    require_bats
+    local files=()
+    while IFS= read -r -d '' f; do
+        files+=("$f")
+    done < <(find "$dir" -maxdepth 2 -name '*.bats' -print0 | sort -z)
+    if [ ${#files[@]} -eq 0 ]; then
+        return 1
+    fi
+    echo "Running bats on ${#files[@]} file(s) from $dir/ ..."
+    bats "${files[@]}" "$@"
+}
+
+if run_bats_files test "$@"; then
     echo "Tests OK"
-elif find tests -maxdepth 2 -name '*.bats' -print -quit 2>/dev/null | grep -q .; then
-    run_bats_dir tests "$@"
+elif run_bats_files tests "$@"; then
     echo "Tests OK"
 else
     echo "No .bats tests under test/ or tests/ — skipping."

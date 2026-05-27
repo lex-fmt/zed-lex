@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 "$SCRIPT_DIR/check-fmt"
 "$SCRIPT_DIR/check-lint"
+"$SCRIPT_DIR/build"
 "$SCRIPT_DIR/check-tests"
 
 echo ""
