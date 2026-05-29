@@ -19,6 +19,7 @@
 
 # test/helpers.bash -> repo root
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC2034  # consumed by test/queries.bats which loads this helper
 QUERY_DIR="$REPO_DIR/languages/lex"
 FIXTURE="$REPO_DIR/test/fixtures/sample.lex"
 TS_CLI="npx --yes tree-sitter-cli@0.25"

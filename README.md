@@ -142,7 +142,7 @@ automatically. No swap script, no manual flip.
 ### Lex-only scope
 
 `theme_overrides` is global: a key like `"comment"` would recolour
-comments in *every* file in that theme, not just `.lex`. To scope it,
+comments in _every_ file in that theme, not just `.lex`. To scope it,
 `languages/lex/highlights.scm` dual-tags every overridable capture:
 
 ```scheme
@@ -256,7 +256,7 @@ You're using the older form. The supported path is top-level
 
 Three pieces. The extension itself is the smallest of them.
 
-```
+```text
 ┌────────────────────┐     fetched at install time
 │ tree-sitter-lex    │◄─── (extension.toml: grammars.lex.commit)
 │  parser + queries  │
