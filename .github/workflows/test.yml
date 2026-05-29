@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   ci:
-    uses: arthur-debert/release/.github/workflows/zed-extension-ci.yml@v1
+    uses: arthur-debert/release/.github/workflows/zed-extension-ci.yml@v2
     with:
       # JS tooling drives parts of the umbrella check (e.g. theme-gen,
       # highlights validators).
