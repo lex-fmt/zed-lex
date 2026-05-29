@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   release:
-    uses: arthur-debert/release/.github/workflows/zed-extension.yml@v1
+    uses: arthur-debert/release/.github/workflows/zed-extension.yml@v2
     with:
       version: ${{ inputs.version }}
       # extension-name derives from extension.toml `id` (= "lex"),
