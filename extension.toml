@@ -1,6 +1,6 @@
 id = "lex"
 name = "Lex"
-version = "0.1.2-rc.1"
+version = "0.1.2-rc.2"
 schema_version = 1
 authors = ["Arthur Debert <debert@gmail.com>"]
 description = "Lex document format support: syntax highlighting via tree-sitter, plus the lex-lsp language server (formatting, diagnostics, code actions)."
