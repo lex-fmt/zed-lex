@@ -258,6 +258,42 @@ mod tests {
         }
     }
 
+    /// RAII scratch directory: created on `new`, removed on drop (including
+    /// unwind). Without this, a panicking assertion in a test leaves the
+    /// scratch dir behind and the next run on the same path can produce
+    /// false negatives (stale contents) or false positives (pre-pruned).
+    struct ScratchDir {
+        path: PathBuf,
+    }
+
+    impl ScratchDir {
+        fn new(tag: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "zed-lex-{}-{}-{}",
+                tag,
+                std::process::id(),
+                // Per-invocation suffix: makes the path unique even within
+                // one process so concurrent invocations of the same test
+                // (e.g. `cargo test -- --test-threads=1` repeated runs in
+                // a tight loop, or future parameterised variants) can't
+                // share state through the filesystem.
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0),
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).expect("create scratch dir");
+            Self { path }
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
     #[test]
     fn asset_filename_covers_all_built_platforms() {
         let cases: &[(Os, Architecture, &str)] = &[
@@ -399,38 +435,34 @@ mod tests {
 
     #[test]
     fn prune_old_versions_removes_only_stale_lsp_dirs() {
-        // Scratch dir so the test cannot disturb the real cwd.
-        let scratch =
-            std::env::temp_dir().join(format!("zed-lex-prune-test-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&scratch);
-        fs::create_dir_all(&scratch).unwrap();
+        // ScratchDir handles cleanup on drop (including unwind) so a
+        // panicking assertion doesn't leave temp dirs behind.
+        let scratch = ScratchDir::new("prune-test");
 
         let keep = "lexd-lsp-v0.8.8";
         let stale = "lexd-lsp-v0.8.7";
         let unrelated = "some-other-cache";
         for d in [keep, stale, unrelated] {
-            fs::create_dir_all(scratch.join(d)).unwrap();
+            fs::create_dir_all(scratch.path.join(d)).unwrap();
         }
 
         // prune_old_versions operates on ".", so we chdir for the call.
-        // The RAII guard (a) serialises against any other CWD-touching test
-        // via CWD_MUTEX and (b) restores the previous CWD on drop — even
-        // if an assertion below panics.
+        // CwdGuard (a) serialises against any other CWD-touching test via
+        // CWD_MUTEX and (b) restores the previous CWD on drop — even if an
+        // assertion below panics.
         {
-            let _cwd = CwdGuard::chdir(&scratch);
+            let _cwd = CwdGuard::chdir(&scratch.path);
             prune_old_versions(keep);
         }
 
-        assert!(scratch.join(keep).exists(), "kept dir should remain");
+        assert!(scratch.path.join(keep).exists(), "kept dir should remain");
         assert!(
-            !scratch.join(stale).exists(),
+            !scratch.path.join(stale).exists(),
             "stale lexd-lsp dir should be pruned",
         );
         assert!(
-            scratch.join(unrelated).exists(),
+            scratch.path.join(unrelated).exists(),
             "unrelated dirs must not be touched",
         );
-
-        let _ = fs::remove_dir_all(&scratch);
     }
 }
