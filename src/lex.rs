@@ -209,3 +209,260 @@ impl zed::Extension for LexExtension {
 }
 
 zed::register_extension!(LexExtension);
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the pure helpers that drive lexd-lsp asset selection.
+    //!
+    //! These functions are the load-bearing pieces of the extension: a wrong
+    //! mapping means a Zed user on that platform either fails to install or
+    //! tries to execute the wrong binary. They have no host dependencies, so
+    //! they run natively under `cargo test` despite the crate being a cdylib.
+    use super::*;
+    use serde_json::Value;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, MutexGuard};
+    use zed_extension_api::{Architecture, DownloadedFileType, Os};
+
+    /// Serialises any test that mutates the process CWD. `cargo test` runs
+    /// tests on a thread pool, and `std::env::set_current_dir` is global —
+    /// without this, two CWD-touching tests race and either see the wrong
+    /// directory (cross-talk) or fail spuriously (relative reads).
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// RAII guard: hold the CWD lock, restore the previous CWD on drop —
+    /// even on panic. Without this, a panic between `set_current_dir` and
+    /// the manual restore would leave later tests in the wrong directory.
+    struct CwdGuard {
+        prev: PathBuf,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl CwdGuard {
+        fn chdir(target: &Path) -> Self {
+            // Recover from a poisoned mutex: a prior panic that left the
+            // CWD unrestored is exactly the state we want to remediate
+            // anyway, so unwrapping `into_inner` here is the right move.
+            let lock = CWD_MUTEX.lock().unwrap_or_else(|p| p.into_inner());
+            let prev = std::env::current_dir().expect("current_dir must succeed");
+            std::env::set_current_dir(target).expect("set_current_dir must succeed");
+            Self { prev, _lock: lock }
+        }
+    }
+
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            // Best-effort restore: don't double-panic in destructor.
+            let _ = std::env::set_current_dir(&self.prev);
+        }
+    }
+
+    /// RAII scratch directory: created on `new`, removed on drop (including
+    /// unwind). Without this, a panicking assertion in a test leaves the
+    /// scratch dir behind and the next run on the same path can produce
+    /// false negatives (stale contents) or false positives (pre-pruned).
+    struct ScratchDir {
+        path: PathBuf,
+    }
+
+    impl ScratchDir {
+        fn new(tag: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "zed-lex-{}-{}-{}",
+                tag,
+                std::process::id(),
+                // Per-invocation suffix: makes the path unique even within
+                // one process so concurrent invocations of the same test
+                // (e.g. `cargo test -- --test-threads=1` repeated runs in
+                // a tight loop, or future parameterised variants) can't
+                // share state through the filesystem.
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0),
+            ));
+            let _ = fs::remove_dir_all(&path);
+            fs::create_dir_all(&path).expect("create scratch dir");
+            Self { path }
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn asset_filename_covers_all_built_platforms() {
+        let cases: &[(Os, Architecture, &str)] = &[
+            (
+                Os::Linux,
+                Architecture::X8664,
+                "lexd-lsp-x86_64-unknown-linux-gnu.tar.gz",
+            ),
+            (
+                Os::Linux,
+                Architecture::Aarch64,
+                "lexd-lsp-aarch64-unknown-linux-gnu.tar.gz",
+            ),
+            (
+                Os::Mac,
+                Architecture::X8664,
+                "lexd-lsp-x86_64-apple-darwin.tar.gz",
+            ),
+            (
+                Os::Mac,
+                Architecture::Aarch64,
+                "lexd-lsp-aarch64-apple-darwin.tar.gz",
+            ),
+            (
+                Os::Windows,
+                Architecture::X8664,
+                "lexd-lsp-x86_64-pc-windows-msvc.zip",
+            ),
+        ];
+        for (os, arch, want) in cases {
+            let got = asset_filename(*os, *arch).expect("supported platform");
+            assert_eq!(got, *want, "wrong asset for {os:?}/{arch:?}");
+        }
+    }
+
+    #[test]
+    fn asset_filename_windows_arm64_falls_back_to_amd64() {
+        // Documented behaviour: Windows on aarch64 has no upstream build, so
+        // the wildcard match deliberately serves the x86_64 binary (runs
+        // under emulation). If a real Windows-arm asset is ever published,
+        // update this test alongside the mapping.
+        let got = asset_filename(Os::Windows, Architecture::Aarch64).unwrap();
+        assert_eq!(got, "lexd-lsp-x86_64-pc-windows-msvc.zip");
+    }
+
+    #[test]
+    fn asset_filename_errors_for_unsupported_arch() {
+        let err = asset_filename(Os::Linux, Architecture::X86).expect_err("no 32-bit linux build");
+        assert!(
+            err.contains("no prebuilt lexd-lsp binary"),
+            "error should explain the failure, got: {err}",
+        );
+        assert!(
+            err.contains("lsp.lex-lsp.binary.path"),
+            "error should point at the settings escape hatch, got: {err}",
+        );
+    }
+
+    #[test]
+    fn binary_filename_adds_exe_on_windows_only() {
+        assert_eq!(binary_filename(Os::Windows), "lexd-lsp.exe");
+        assert_eq!(binary_filename(Os::Mac), "lexd-lsp");
+        assert_eq!(binary_filename(Os::Linux), "lexd-lsp");
+    }
+
+    #[test]
+    fn archive_kind_matches_os() {
+        assert!(matches!(archive_kind(Os::Windows), DownloadedFileType::Zip));
+        assert!(matches!(archive_kind(Os::Mac), DownloadedFileType::GzipTar));
+        assert!(matches!(
+            archive_kind(Os::Linux),
+            DownloadedFileType::GzipTar
+        ));
+    }
+
+    #[test]
+    fn archive_kind_agrees_with_asset_filename_extension() {
+        // Defensive: if someone changes one mapping without the other, the
+        // download silently uses the wrong unpacker. Lock the two together.
+        let pairs: &[(Os, Architecture)] = &[
+            (Os::Linux, Architecture::X8664),
+            (Os::Linux, Architecture::Aarch64),
+            (Os::Mac, Architecture::X8664),
+            (Os::Mac, Architecture::Aarch64),
+            (Os::Windows, Architecture::X8664),
+        ];
+        for (os, arch) in pairs {
+            let name = asset_filename(*os, *arch).unwrap();
+            match archive_kind(*os) {
+                DownloadedFileType::Zip => assert!(
+                    name.ends_with(".zip"),
+                    "{os:?} declared Zip but asset is {name}",
+                ),
+                DownloadedFileType::GzipTar => assert!(
+                    name.ends_with(".tar.gz"),
+                    "{os:?} declared GzipTar but asset is {name}",
+                ),
+                // Any future archive variant should be wired in explicitly.
+                other => panic!("unhandled archive kind {other:?} for {os:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn lex_deps_parses_embedded_json() {
+        let deps = lex_deps().expect("embedded lex-deps.json must parse");
+        assert!(
+            deps.lexd_lsp.starts_with('v'),
+            "lexd-lsp pin should be a release tag like v0.8.8, got {}",
+            deps.lexd_lsp,
+        );
+        assert!(
+            deps.lexd_lsp_repo.contains('/'),
+            "lexd-lsp-repo should be owner/name, got {}",
+            deps.lexd_lsp_repo,
+        );
+    }
+
+    #[test]
+    fn lex_deps_json_is_in_sync_with_disk() {
+        // The constant is `include_str!`'d at compile time, so a stale build
+        // can mask drift. CI always builds fresh, so this test still catches
+        // an unintended edit that didn't go through a rebuild.
+        //
+        // Anchor the path against `CARGO_MANIFEST_DIR` rather than the
+        // process CWD: some test runners run with a different working
+        // directory (and `prune_old_versions_removes_only_stale_lsp_dirs`
+        // also mutates CWD), so a relative read is fragile.
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let on_disk = fs::read_to_string(manifest_dir.join("shared/lex-deps.json"))
+            .expect("shared/lex-deps.json should exist next to Cargo.toml (CARGO_MANIFEST_DIR)");
+        let embedded: Value = serde_json::from_str(LEX_DEPS_JSON).unwrap();
+        let from_disk: Value = serde_json::from_str(&on_disk).unwrap();
+        assert_eq!(
+            embedded, from_disk,
+            "embedded LEX_DEPS_JSON drifted from shared/lex-deps.json",
+        );
+    }
+
+    #[test]
+    fn prune_old_versions_removes_only_stale_lsp_dirs() {
+        // ScratchDir handles cleanup on drop (including unwind) so a
+        // panicking assertion doesn't leave temp dirs behind.
+        let scratch = ScratchDir::new("prune-test");
+
+        let keep = "lexd-lsp-v0.8.8";
+        let stale = "lexd-lsp-v0.8.7";
+        let unrelated = "some-other-cache";
+        for d in [keep, stale, unrelated] {
+            fs::create_dir_all(scratch.path.join(d)).unwrap();
+        }
+
+        // prune_old_versions operates on ".", so we chdir for the call.
+        // CwdGuard (a) serialises against any other CWD-touching test via
+        // CWD_MUTEX and (b) restores the previous CWD on drop — even if an
+        // assertion below panics.
+        {
+            let _cwd = CwdGuard::chdir(&scratch.path);
+            prune_old_versions(keep);
+        }
+
+        assert!(scratch.path.join(keep).exists(), "kept dir should remain");
+        assert!(
+            !scratch.path.join(stale).exists(),
+            "stale lexd-lsp dir should be pruned",
+        );
+        assert!(
+            scratch.path.join(unrelated).exists(),
+            "unrelated dirs must not be touched",
+        );
+    }
+}
