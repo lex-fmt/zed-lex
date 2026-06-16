@@ -1,0 +1,1 @@
+- Add unit tests for the lexd-lsp asset-selection helpers in `src/lex.rs` (`asset_filename`, `binary_filename`, `archive_kind`, `lex_deps`, `prune_old_versions`); coverage on `src/lex.rs` 0% → 57%

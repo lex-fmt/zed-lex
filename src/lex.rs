@@ -209,3 +209,184 @@ impl zed::Extension for LexExtension {
 }
 
 zed::register_extension!(LexExtension);
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the pure helpers that drive lexd-lsp asset selection.
+    //!
+    //! These functions are the load-bearing pieces of the extension: a wrong
+    //! mapping means a Zed user on that platform either fails to install or
+    //! tries to execute the wrong binary. They have no host dependencies, so
+    //! they run natively under `cargo test` despite the crate being a cdylib.
+    use super::*;
+    use serde_json::Value;
+    use std::fs;
+    use zed_extension_api::{Architecture, DownloadedFileType, Os};
+
+    #[test]
+    fn asset_filename_covers_all_built_platforms() {
+        let cases: &[(Os, Architecture, &str)] = &[
+            (
+                Os::Linux,
+                Architecture::X8664,
+                "lexd-lsp-x86_64-unknown-linux-gnu.tar.gz",
+            ),
+            (
+                Os::Linux,
+                Architecture::Aarch64,
+                "lexd-lsp-aarch64-unknown-linux-gnu.tar.gz",
+            ),
+            (
+                Os::Mac,
+                Architecture::X8664,
+                "lexd-lsp-x86_64-apple-darwin.tar.gz",
+            ),
+            (
+                Os::Mac,
+                Architecture::Aarch64,
+                "lexd-lsp-aarch64-apple-darwin.tar.gz",
+            ),
+            (
+                Os::Windows,
+                Architecture::X8664,
+                "lexd-lsp-x86_64-pc-windows-msvc.zip",
+            ),
+        ];
+        for (os, arch, want) in cases {
+            let got = asset_filename(*os, *arch).expect("supported platform");
+            assert_eq!(got, *want, "wrong asset for {os:?}/{arch:?}");
+        }
+    }
+
+    #[test]
+    fn asset_filename_windows_arm64_falls_back_to_amd64() {
+        // Documented behaviour: Windows on aarch64 has no upstream build, so
+        // the wildcard match deliberately serves the x86_64 binary (runs
+        // under emulation). If a real Windows-arm asset is ever published,
+        // update this test alongside the mapping.
+        let got = asset_filename(Os::Windows, Architecture::Aarch64).unwrap();
+        assert_eq!(got, "lexd-lsp-x86_64-pc-windows-msvc.zip");
+    }
+
+    #[test]
+    fn asset_filename_errors_for_unsupported_arch() {
+        let err = asset_filename(Os::Linux, Architecture::X86).expect_err("no 32-bit linux build");
+        assert!(
+            err.contains("no prebuilt lexd-lsp binary"),
+            "error should explain the failure, got: {err}",
+        );
+        assert!(
+            err.contains("lsp.lex-lsp.binary.path"),
+            "error should point at the settings escape hatch, got: {err}",
+        );
+    }
+
+    #[test]
+    fn binary_filename_adds_exe_on_windows_only() {
+        assert_eq!(binary_filename(Os::Windows), "lexd-lsp.exe");
+        assert_eq!(binary_filename(Os::Mac), "lexd-lsp");
+        assert_eq!(binary_filename(Os::Linux), "lexd-lsp");
+    }
+
+    #[test]
+    fn archive_kind_matches_os() {
+        assert!(matches!(archive_kind(Os::Windows), DownloadedFileType::Zip));
+        assert!(matches!(archive_kind(Os::Mac), DownloadedFileType::GzipTar));
+        assert!(matches!(
+            archive_kind(Os::Linux),
+            DownloadedFileType::GzipTar
+        ));
+    }
+
+    #[test]
+    fn archive_kind_agrees_with_asset_filename_extension() {
+        // Defensive: if someone changes one mapping without the other, the
+        // download silently uses the wrong unpacker. Lock the two together.
+        let pairs: &[(Os, Architecture)] = &[
+            (Os::Linux, Architecture::X8664),
+            (Os::Linux, Architecture::Aarch64),
+            (Os::Mac, Architecture::X8664),
+            (Os::Mac, Architecture::Aarch64),
+            (Os::Windows, Architecture::X8664),
+        ];
+        for (os, arch) in pairs {
+            let name = asset_filename(*os, *arch).unwrap();
+            match archive_kind(*os) {
+                DownloadedFileType::Zip => assert!(
+                    name.ends_with(".zip"),
+                    "{os:?} declared Zip but asset is {name}",
+                ),
+                DownloadedFileType::GzipTar => assert!(
+                    name.ends_with(".tar.gz"),
+                    "{os:?} declared GzipTar but asset is {name}",
+                ),
+                // Any future archive variant should be wired in explicitly.
+                other => panic!("unhandled archive kind {other:?} for {os:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn lex_deps_parses_embedded_json() {
+        let deps = lex_deps().expect("embedded lex-deps.json must parse");
+        assert!(
+            deps.lexd_lsp.starts_with('v'),
+            "lexd-lsp pin should be a release tag like v0.8.8, got {}",
+            deps.lexd_lsp,
+        );
+        assert!(
+            deps.lexd_lsp_repo.contains('/'),
+            "lexd-lsp-repo should be owner/name, got {}",
+            deps.lexd_lsp_repo,
+        );
+    }
+
+    #[test]
+    fn lex_deps_json_is_in_sync_with_disk() {
+        // The constant is `include_str!`'d at compile time, so a stale build
+        // can mask drift. CI always builds fresh, so this test still catches
+        // an unintended edit that didn't go through a rebuild.
+        let on_disk = fs::read_to_string("shared/lex-deps.json")
+            .expect("shared/lex-deps.json should exist at the workspace root");
+        let embedded: Value = serde_json::from_str(LEX_DEPS_JSON).unwrap();
+        let from_disk: Value = serde_json::from_str(&on_disk).unwrap();
+        assert_eq!(
+            embedded, from_disk,
+            "embedded LEX_DEPS_JSON drifted from shared/lex-deps.json",
+        );
+    }
+
+    #[test]
+    fn prune_old_versions_removes_only_stale_lsp_dirs() {
+        // Scratch dir so the test cannot disturb the real cwd.
+        let scratch =
+            std::env::temp_dir().join(format!("zed-lex-prune-test-{}", std::process::id(),));
+        let _ = fs::remove_dir_all(&scratch);
+        fs::create_dir_all(&scratch).unwrap();
+
+        let keep = "lexd-lsp-v0.8.8";
+        let stale = "lexd-lsp-v0.8.7";
+        let unrelated = "some-other-cache";
+        for d in [keep, stale, unrelated] {
+            fs::create_dir_all(scratch.join(d)).unwrap();
+        }
+
+        // prune_old_versions operates on "." — chdir for the duration.
+        let prev = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&scratch).unwrap();
+        prune_old_versions(keep);
+        std::env::set_current_dir(&prev).unwrap();
+
+        assert!(scratch.join(keep).exists(), "kept dir should remain");
+        assert!(
+            !scratch.join(stale).exists(),
+            "stale lexd-lsp dir should be pruned",
+        );
+        assert!(
+            scratch.join(unrelated).exists(),
+            "unrelated dirs must not be touched",
+        );
+
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
