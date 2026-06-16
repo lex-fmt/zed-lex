@@ -226,9 +226,9 @@ mod tests {
     use zed_extension_api::{Architecture, DownloadedFileType, Os};
 
     /// Serialises any test that mutates the process CWD. `cargo test` runs
-    /// tests on a thread pool, and `std::env::set_current_dir` is global, so
-    /// without this two CWD-touching tests can race (gemini/copilot review
-    /// on #42).
+    /// tests on a thread pool, and `std::env::set_current_dir` is global —
+    /// without this, two CWD-touching tests race and either see the wrong
+    /// directory (cross-talk) or fail spuriously (relative reads).
     static CWD_MUTEX: Mutex<()> = Mutex::new(());
 
     /// RAII guard: hold the CWD lock, restore the previous CWD on drop —
@@ -388,7 +388,7 @@ mod tests {
         // also mutates CWD), so a relative read is fragile.
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let on_disk = fs::read_to_string(manifest_dir.join("shared/lex-deps.json"))
-            .expect("shared/lex-deps.json should exist at the workspace root");
+            .expect("shared/lex-deps.json should exist next to Cargo.toml (CARGO_MANIFEST_DIR)");
         let embedded: Value = serde_json::from_str(LEX_DEPS_JSON).unwrap();
         let from_disk: Value = serde_json::from_str(&on_disk).unwrap();
         assert_eq!(
