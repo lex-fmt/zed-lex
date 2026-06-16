@@ -221,7 +221,42 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, MutexGuard};
     use zed_extension_api::{Architecture, DownloadedFileType, Os};
+
+    /// Serialises any test that mutates the process CWD. `cargo test` runs
+    /// tests on a thread pool, and `std::env::set_current_dir` is global, so
+    /// without this two CWD-touching tests can race (gemini/copilot review
+    /// on #42).
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// RAII guard: hold the CWD lock, restore the previous CWD on drop —
+    /// even on panic. Without this, a panic between `set_current_dir` and
+    /// the manual restore would leave later tests in the wrong directory.
+    struct CwdGuard {
+        prev: PathBuf,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl CwdGuard {
+        fn chdir(target: &Path) -> Self {
+            // Recover from a poisoned mutex: a prior panic that left the
+            // CWD unrestored is exactly the state we want to remediate
+            // anyway, so unwrapping `into_inner` here is the right move.
+            let lock = CWD_MUTEX.lock().unwrap_or_else(|p| p.into_inner());
+            let prev = std::env::current_dir().expect("current_dir must succeed");
+            std::env::set_current_dir(target).expect("set_current_dir must succeed");
+            Self { prev, _lock: lock }
+        }
+    }
+
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            // Best-effort restore: don't double-panic in destructor.
+            let _ = std::env::set_current_dir(&self.prev);
+        }
+    }
 
     #[test]
     fn asset_filename_covers_all_built_platforms() {
@@ -346,7 +381,13 @@ mod tests {
         // The constant is `include_str!`'d at compile time, so a stale build
         // can mask drift. CI always builds fresh, so this test still catches
         // an unintended edit that didn't go through a rebuild.
-        let on_disk = fs::read_to_string("shared/lex-deps.json")
+        //
+        // Anchor the path against `CARGO_MANIFEST_DIR` rather than the
+        // process CWD: some test runners run with a different working
+        // directory (and `prune_old_versions_removes_only_stale_lsp_dirs`
+        // also mutates CWD), so a relative read is fragile.
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let on_disk = fs::read_to_string(manifest_dir.join("shared/lex-deps.json"))
             .expect("shared/lex-deps.json should exist at the workspace root");
         let embedded: Value = serde_json::from_str(LEX_DEPS_JSON).unwrap();
         let from_disk: Value = serde_json::from_str(&on_disk).unwrap();
@@ -360,7 +401,7 @@ mod tests {
     fn prune_old_versions_removes_only_stale_lsp_dirs() {
         // Scratch dir so the test cannot disturb the real cwd.
         let scratch =
-            std::env::temp_dir().join(format!("zed-lex-prune-test-{}", std::process::id(),));
+            std::env::temp_dir().join(format!("zed-lex-prune-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&scratch);
         fs::create_dir_all(&scratch).unwrap();
 
@@ -371,11 +412,14 @@ mod tests {
             fs::create_dir_all(scratch.join(d)).unwrap();
         }
 
-        // prune_old_versions operates on "." — chdir for the duration.
-        let prev = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&scratch).unwrap();
-        prune_old_versions(keep);
-        std::env::set_current_dir(&prev).unwrap();
+        // prune_old_versions operates on ".", so we chdir for the call.
+        // The RAII guard (a) serialises against any other CWD-touching test
+        // via CWD_MUTEX and (b) restores the previous CWD on drop — even
+        // if an assertion below panics.
+        {
+            let _cwd = CwdGuard::chdir(&scratch);
+            prune_old_versions(keep);
+        }
 
         assert!(scratch.join(keep).exists(), "kept dir should remain");
         assert!(
