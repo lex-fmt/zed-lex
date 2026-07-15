@@ -1,0 +1,165 @@
+# pixi workspace — seeded by `shipit install` (the managed blocks below
+# need a valid manifest). Consumer-owned from here on: edit freely.
+[workspace]
+name = "zed-lex"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-arm64"]
+
+[tasks]
+# >>> shipit-managed test task (do not edit; regenerate via `shipit install`) >>>
+test = "./bin/shipit test"
+# <<< shipit-managed test task <<<
+# >>> shipit-managed tasks (do not edit; regenerate via `shipit install`) >>>
+changelog = "./bin/shipit changelog"
+lint = "./bin/shipit lint"
+logs = "./bin/shipit logs"
+provision-lexd = "./bin/shipit provision lexd"
+# <<< shipit-managed tasks <<<
+
+[feature.lint.dependencies]
+# >>> shipit-managed rust lint toolchain (do not edit; regenerate via `shipit install`) >>>
+# The fleet-pinned rust lint toolchain (#547 Layer 1) — delivered because this
+# repo tracks a Cargo.toml, which is exactly what makes the rust leg of `shipit
+# lint` run (cargo clippy / cargo fmt per tracked manifest). conda-forge's
+# `rust` is the official toolchain (cargo + clippy + rustfmt included), so the
+# leg stops hard-failing (127) on hosts and CI runners without cargo (#526).
+# Same pin as shipit's own [feature.test.dependencies] rust. If this repo no
+# longer ships rust (the last Cargo.toml is gone), delete this block and its
+# `pixi.toml#shipit-rust-lint-toolchain` entry in .shipit.toml's [managed]
+# table — a reconcile only ADDS toolchain blocks, it never retires one.
+rust = "1.96.*"
+# <<< shipit-managed rust lint toolchain <<<
+# >>> shipit-managed lint deps (do not edit; regenerate via `shipit install`) >>>
+# The fleet-pinned lint toolchain (docs/legacy-prd/adoption.md in the
+# arthur-debert/shipit repo: the managed set owns the consumer environment).
+# Canonical versions live HERE — a bump is one data edit, rolled fleet-wide on
+# each consumer's next `shipit install` reconcile.
+ruff = "0.15.*"
+# shellcheck is PINNED DOWN to 0.10.* (not 0.11): shellcheck 0.11.0 has an SC2218
+# reaching-definitions false positive — a call to an EARLIER-defined function is
+# flagged "defined later" when a subshell (`$(...)`, a pipeline component, `<(...)`)
+# sits near the call, reddening the hermetic gate on CORRECT code across 5+ fleet
+# repos. 0.11.0 is the latest upstream (no fixed 0.11.x yet); restore 0.11+ when
+# upstream fixes it.
+shellcheck = "0.10.*"
+# conda-forge name for the `shfmt` binary
+go-shfmt = "3.*"
+yamllint = "1.38.*"
+prettier = "3.8.*"
+markdownlint-cli = "0.49.*"
+# GitHub Actions workflow gate — the actions Lang of `shipit lint` (TOL01-WS04)
+actionlint = "1.7.*"
+lefthook = "2.1.*"
+# <<< shipit-managed lint deps <<<
+
+[environments]
+# >>> shipit-managed environments (do not edit; regenerate via `shipit install`) >>>
+lint = ["lint"]
+# <<< shipit-managed environments <<<
+
+[dependencies]
+# >>> shipit-managed rust release toolchain (do not edit; regenerate via `shipit install`) >>>
+# The rust RELEASE toolchain (#801, closing open hole 1 of the TOL02-WS17
+# inventory): hosted runner images no longer carry Rust, and the managed rust
+# LINT block anchors in the lint feature — an env the release runs' bare
+# `pixi run --locked ./bin/shipit` never resolves. So `cargo` itself (prepare's
+# subcommand dispatch, `cargo build`, `cargo publish`/`cargo metadata`)
+# anchors HERE, in the DEFAULT env's [dependencies], exactly the PATH every
+# wf-release stage executes with. conda-forge's `rust` is the official
+# toolchain (cargo included), provisioned under setup-pixi's lockfile-keyed
+# cache (the #582 doctrine: the release run NEVER installs at run time).
+# Deliberately the SYSROOT-ONLY block, SEPARATE from the cargo-edit
+# release-deps block: a consumer already pinning `rust` in its own
+# [dependencies] (the pre-#801 consumer-side workaround) keeps its pin via
+# the PixiKeyConflict first-splice guard WITHOUT losing cargo-edit delivery
+# — a block shared with the release deps would be skipped whole. Pinned in
+# lockstep with the rust lint block (drift-tested); a bump is one data edit
+# per block, same diff. If this repo no longer ships rust (the last
+# Cargo.toml is gone), delete this block and its
+# `pixi.toml#shipit-rust-release-toolchain` entry in .shipit.toml's
+# [managed] table — a reconcile only ADDS toolchain blocks, never retires one.
+rust = "1.96.*"
+# The wasm32 target std for this managed sysroot (#853): conda-forge's
+# wasm-pack does NOT pull it — its only deps are __glibc/libgcc (osx: __osx),
+# so the WS12 record's "wasm-pack pulls the wasm32 std" claim was false and
+# every wasm build against the managed `rust` toolchain died with
+# "wasm32-unknown-unknown target not found in sysroot" (found live in the
+# ADP02 rust reconcile wave). Anchors HERE, beside the `rust` line it is a
+# component of — NOT in the release-deps block — so a consumer that owns its
+# `rust` pin skips the std WITH the toolchain (one sysroot, one owner: that
+# consumer self-provisions the matching std, the sanctioned #759 rule)
+# instead of receiving a std that misses its own rust version. Still no
+# wasm-gated block (the WS12 record); accepted residue: ~20MB in every rust
+# consumer's default env, wasm or not. Pinned in LOCKSTEP with the `rust`
+# line above (drift-tested, `test_pins_agree_with_their_one_authority`) —
+# bump both keys in the same diff, or the std misses the sysroot version.
+rust-std-wasm32-unknown-unknown = "1.96.*"
+# <<< shipit-managed rust release toolchain <<<
+# >>> shipit-managed rust release deps (do not edit; regenerate via `shipit install`) >>>
+# The rust RELEASE-side bump tool (#793, the #784-F2 failure class): `shipit
+# release prepare`'s rust bump adapter runs `cargo set-version --workspace`
+# (a cargo-edit subcommand), and wf-prepare executes shipit in the DEFAULT
+# pixi env (`pixi run --locked ./bin/shipit`), so cargo-edit anchors HERE —
+# [dependencies], not a feature — where that run's PATH resolves it (cargo
+# finds subcommands via $CARGO_HOME/bin then PATH, the #785 finding).
+# Provisioned from conda-forge under setup-pixi's lockfile-keyed cache (the
+# #582 doctrine: the release run NEVER `cargo install`s). Pinned to the patch
+# line (`0.13.11.*` — conda match-spec, so any 0.13.11.x build resolves); a
+# bump is one data edit, rolled out on each consumer's next `shipit install`
+# reconcile. If this repo no longer ships rust (the last Cargo.toml is gone),
+# delete this block and its `pixi.toml#shipit-rust-release-deps` entry in
+# .shipit.toml's [managed] table — a reconcile only ADDS toolchain blocks, it
+# never retires one.
+cargo-edit = "0.13.11.*"
+# The wasm/npm bundle composition's builder (TOL02-WS12 #788, WS10 DECIDED
+# #798): `shipit release bundle`'s wasm-pack composition runs `wasm-pack build`
+# to turn a rust crate into an npm package tree, then `npm pack`s the tarball
+# — the artifact. wasm-pack is on conda-forge, so it anchors HERE (the rust
+# release-deps block, rust signal) beside cargo-edit rather than
+# self-provisioning (the cargo-deb #785 exception is for tools conda-forge does
+# NOT carry). Provisioned under setup-pixi's lockfile-keyed cache (the #582
+# doctrine: the release run NEVER installs at run time). Pinned to the
+# minor line (`0.15.*` — conda match-spec); a bump is one data edit, rolled out
+# on each consumer's next `shipit install` reconcile. 0.15.* per #846: the
+# original 0.13.* pin was never solvable — conda-forge never published any
+# 0.13.x wasm-pack build (verified on osx-arm64 + linux-64) — so every
+# consumer's default env died at solve.
+wasm-pack = "0.15.*"
+# NOTE: wasm-pack does NOT pull the wasm32 target std — its only conda deps
+# are __glibc/libgcc (osx: __osx), so the WS12 record's claim that it did was
+# false (#853). The std is a sysroot COMPONENT, so it anchors in the
+# rust-release-toolchain block beside `rust`, NOT here: it must be delivered
+# (and skipped, when a consumer owns its `rust` pin) with the sysroot it
+# belongs to, while this block delivers unconditionally on the rust signal.
+# The Artifact channel's conda-endpoint packager (ARF01-WS01 #950, ADR-0064):
+# `shipit release publish`'s conda endpoint runs `rattler-build build` to
+# repackage a final release binary into a `.conda` and `rattler-build publish`
+# to push+reindex the producing repo's per-repo channel. rattler-build is on
+# conda-forge, so it anchors HERE (the rust release-deps block, rust signal)
+# beside wasm-pack — the walking-skeleton producer (lex-fmt/lex → lexd) is a
+# rust artifact, so the rust signal delivers it; a language-agnostic
+# endpoint-gated home is future work. Provisioned under setup-pixi's
+# lockfile-keyed cache (the #582 doctrine: the release run NEVER installs at run
+# time — publish fails loudly naming this reconcile instead). Pinned to the
+# minor line (`0.68.*` — conda match-spec); spike-validated at 0.68.0
+# (ADR-0064). A bump is one data edit, rolled out on each consumer's next
+# `shipit install` reconcile.
+rattler-build = "0.68.*"
+# <<< shipit-managed rust release deps <<<
+# >>> shipit-managed launcher deps (do not edit; regenerate via `shipit install`) >>>
+# The pinned `bin/shipit` launcher's one prerequisite (#758, TOL02-WS17
+# #794): every workflow block (wf-checks and the whole wf-release family)
+# runs `pixi run --locked ./bin/shipit ...`, and the ADR-0033 launcher
+# resolves the repo's shipit pin via `uv tool run` — but hosted runners do
+# not carry uv, so without this block the very first `./bin/shipit` dies 127
+# before any verb runs. Provisioned from conda-forge under setup-pixi's
+# lockfile-keyed cache (the #582 doctrine; the spike measured the launcher's
+# uv resolve at 5s cold / 0-3s warm riding this env — no extra cache step).
+# Anchored under [dependencies] — the DEFAULT env — because that is exactly
+# the PATH a bare `pixi run --locked <task>` resolves. Pinned to the minor
+# line of Layer 0's UV_PIN (bin/setup-dev-env.sh), so dev machines and CI
+# provision the same uv; a lockstep drift test (tests/test_install.py) fails
+# when the two move apart. `uv build` (the python bundle composition) rides
+# this same entry.
+uv = "0.11.*"
+# <<< shipit-managed launcher deps <<<
