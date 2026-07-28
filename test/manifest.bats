@@ -70,10 +70,8 @@ load 'helpers'
 # while nothing enforces it (serde drops unknown keys), so it silently goes
 # stale. Keep it deleted.
 @test "shared/lex-deps.json carries no tree-sitter pin" {
-    run assert_json_has_key shared/lex-deps.json tree-sitter
-    [ "$status" -ne 0 ]
-    run assert_json_has_key shared/lex-deps.json tree-sitter-repo
-    [ "$status" -ne 0 ]
+    assert_json_lacks_key shared/lex-deps.json tree-sitter
+    assert_json_lacks_key shared/lex-deps.json tree-sitter-repo
 }
 
 # --- generators ----- ----- ----- ----- ----- ----- ----- ----- ----- ------
