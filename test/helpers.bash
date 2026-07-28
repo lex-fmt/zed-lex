@@ -9,6 +9,8 @@
 #   - assert_query_captures — assert at least N captures of a given name
 #   - assert_toml_has_field — TOML field-presence (via python3 tomllib)
 #   - assert_json_field_eq  — JSON field equality (via python3 json)
+#   - assert_json_has_key   — JSON key presence
+#   - assert_json_lacks_key — JSON key absence (names the key it found)
 #   - assert_sha40          — value is a 40-char lowercase hex string
 #   - assert_v_prefixed     — value begins with "v" (release-tag convention)
 #
@@ -36,9 +38,17 @@ GRAMMAR_DIR="${GRAMMAR_DIR:-}"
 # grammar.json) and echo its path.  Resolution order:
 #   1. ../tree-sitter-lex sibling checkout
 #   2. /tmp/tree-sitter-lex (already-extracted)
-#   3. Download release tarball from GitHub at the version pinned in
-#      shared/lex-deps.json
+#   3. Download the GitHub source archive at the grammar pin in
+#      extension.toml's [grammars.lex] (repository + commit)
 # Always runs `tree-sitter generate` (idempotent) so grammar.json exists.
+#
+# The download pin comes from extension.toml because that is the pin Zed
+# itself fetches and builds: testing the queries against any other revision
+# would validate them against a grammar no user ever runs.
+#
+# Returns 1 at the first failing step (missing TOML path, download, extract,
+# generate) with that step named on stderr, rather than carrying an empty
+# value forward into a later, less legible error.
 setup_grammar() {
     if [[ -n "$GRAMMAR_DIR" && -f "$GRAMMAR_DIR/src/grammar.json" ]]; then
         echo "$GRAMMAR_DIR"
@@ -51,17 +61,30 @@ setup_grammar() {
     elif [[ -d /tmp/tree-sitter-lex/src ]]; then
         dir=/tmp/tree-sitter-lex
     else
-        local ts_version ts_repo url
-        ts_version=$(python3 -c "import json;print(json.load(open('$REPO_DIR/shared/lex-deps.json'))['tree-sitter'])")
-        ts_repo=$(python3 -c "import json;d=json.load(open('$REPO_DIR/shared/lex-deps.json'));print(d.get('tree-sitter-repo','lex-fmt/tree-sitter-lex'))")
-        dir="$(mktemp -d -t zed-lex-ts.XXXXXX)/tree-sitter-lex"
-        mkdir -p "$dir"
-        url="https://github.com/${ts_repo}/releases/download/${ts_version}/tree-sitter.tar.gz"
-        curl -fsSL "$url" -o "$dir/tree-sitter.tar.gz"
-        tar -xzf "$dir/tree-sitter.tar.gz" -C "$dir"
+        local ts_repo_url ts_repo ts_commit url tmp
+        # Every step below stops the function on failure. Left unchecked,
+        # a missing TOML path yields empty vars and the run dies much later
+        # on a malformed URL — a confusing curl/tar error standing in for
+        # the real one.
+        ts_repo_url=$(toml_path grammars.lex.repository) || return 1
+        ts_commit=$(toml_path grammars.lex.commit) || return 1
+        ts_repo="${ts_repo_url#https://github.com/}"
+        ts_repo="${ts_repo%.git}"
+        tmp=$(mktemp -d -t zed-lex-ts.XXXXXX) || return 1
+        dir="$tmp/tree-sitter-lex"
+        mkdir -p "$dir" || return 1
+        url="https://github.com/${ts_repo}/archive/${ts_commit}.tar.gz"
+        # curl -s silences curl's own error text, so name the failure here.
+        curl -fsSL "$url" -o "$dir/tree-sitter.tar.gz" \
+            || { echo "failed to download grammar archive: $url" >&2; return 1; }
+        # A GitHub source archive nests everything under <repo>-<sha>/;
+        # strip that level so the grammar lands directly in $dir.
+        tar -xzf "$dir/tree-sitter.tar.gz" -C "$dir" --strip-components=1 \
+            || { echo "failed to extract grammar archive from $url" >&2; return 1; }
     fi
 
-    ( cd "$dir" && $TS_CLI generate >/dev/null )
+    ( cd "$dir" && $TS_CLI generate >/dev/null ) \
+        || { echo "tree-sitter generate failed in: $dir" >&2; return 1; }
     GRAMMAR_DIR="$dir"
     export GRAMMAR_DIR
     echo "$dir"
@@ -163,6 +186,16 @@ assert_json_has_key() {
     local file="$1" key="$2"
     python3 -c "import json,sys;d=json.load(open('$REPO_DIR/$file'));sys.exit(0 if '$key' in d else 1)" \
         || { echo "$file: missing key $key" >&2; return 1; }
+}
+
+# The mirror of assert_json_has_key: assert $key is ABSENT. Names the
+# offending key on failure, which inverting assert_json_has_key with
+# `run ...; [ "$status" -ne 0 ]` cannot do — that only reports a bare
+# status mismatch.
+assert_json_lacks_key() {
+    local file="$1" key="$2"
+    python3 -c "import json,sys;d=json.load(open('$REPO_DIR/$file'));sys.exit(1 if '$key' in d else 0)" \
+        || { echo "$file: unexpected key present: $key" >&2; return 1; }
 }
 
 # --- Format assertions -------------------------------------------------------

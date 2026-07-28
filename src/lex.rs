@@ -7,11 +7,16 @@ use zed_extension_api::{
 
 const LSP_BINARY_NAME: &str = "lexd-lsp";
 
-/// Pinned versions for the LSP binary and tree-sitter grammar.
+/// Pinned version of the LSP binary this extension downloads at runtime.
 ///
 /// Mirrors the convention shared with the vscode and nvim editor packages:
 /// `shared/lex-deps.json` is the single source of truth, embedded at compile
 /// time. Bumping the LSP version is a one-file change.
+///
+/// The grammar is deliberately not pinned here: Zed clones and builds
+/// tree-sitter-lex itself from `[grammars.lex]` in `extension.toml`, so this
+/// code never downloads it. A second pin in this file would be unread (serde
+/// drops unknown keys) and would go stale unnoticed.
 #[derive(serde::Deserialize)]
 struct LexDeps {
     #[serde(rename = "lexd-lsp")]

@@ -8,11 +8,12 @@
 # created.
 #
 # What we add:
-#   shared/lex-deps.json — pinned versions for the runtime-downloaded
-#   lexd-lsp binary and the tree-sitter-lex grammar tarball. The
-#   extension's Rust code reads this at install/first-use time, so it
-#   MUST ship in the published bundle. The canonical layout doesn't
-#   include `shared/`, so this hook restores it.
+#   shared/lex-deps.json — the pinned version of the runtime-downloaded
+#   lexd-lsp binary. The extension's Rust code reads this at install/
+#   first-use time, so it MUST ship in the published bundle. The
+#   canonical layout doesn't include `shared/`, so this hook restores
+#   it. (The grammar is not in here and needs no shipping: Zed builds
+#   tree-sitter-lex from `[grammars.lex]` in extension.toml.)
 #
 # Env contract (from the canonical workflow):
 #   BUNDLE_DIR      absolute path to the assembled bundle (= $GITHUB_WORKSPACE/dist)
