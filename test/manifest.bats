@@ -63,10 +63,17 @@ load 'helpers'
     assert_json_has_key shared/lex-deps.json lexd-lsp-repo
 }
 
-@test "shared/lex-deps.json: tree-sitter version is v-prefixed" {
-    local v
-    v=$(python3 -c "import json;print(json.load(open('$REPO_DIR/shared/lex-deps.json'))['tree-sitter'])")
-    assert_v_prefixed "$v"
+# lex-deps.json pins only what the Rust code downloads at runtime — the
+# lexd-lsp binary. The grammar is not downloaded by us at all: Zed clones
+# and builds it from [grammars.lex] in extension.toml. A `tree-sitter` key
+# here reads as a live pin to anyone auditing who consumes tree-sitter-lex,
+# while nothing enforces it (serde drops unknown keys), so it silently goes
+# stale. Keep it deleted.
+@test "shared/lex-deps.json carries no tree-sitter pin" {
+    run assert_json_has_key shared/lex-deps.json tree-sitter
+    [ "$status" -ne 0 ]
+    run assert_json_has_key shared/lex-deps.json tree-sitter-repo
+    [ "$status" -ne 0 ]
 }
 
 # --- generators ----- ----- ----- ----- ----- ----- ----- ----- ----- ------

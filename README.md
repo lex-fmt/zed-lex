@@ -288,22 +288,22 @@ Three pieces. The extension itself is the smallest of them.
   tree: `highlights.scm` (dual-tagged for theme scoping),
   `injections.scm` (generated, 13 languages × 6 content types),
   `outline.scm`, `textobjects.scm`, `brackets.scm`, `indents.scm`.
-- `shared/lex-deps.json` pins the runtime versions
-  (`lexd-lsp: vX.Y.Z`, `tree-sitter: vX.Y.Z`). The Rust code reads it
-  via `include_str!()` at WASM compile time.
+- `shared/lex-deps.json` pins the runtime-downloaded LSP version
+  (`lexd-lsp: vX.Y.Z`). The Rust code reads it via `include_str!()` at
+  WASM compile time.
 
 ## Version pins
 
-`shared/lex-deps.json` is the single source of truth for the runtime
-versions:
+Two pins, in two files, one per thing that is actually fetched:
 
-- `lexd-lsp` — the LSP server tag downloaded from `lex-fmt/lex`.
-- `tree-sitter` — the `tree-sitter-lex` tag. The 40-char SHA for that
-  tag also lives in `extension.toml`'s `[grammars.lex] commit` (Zed
-  pins grammars by SHA, not tag).
+- `shared/lex-deps.json` → `lexd-lsp` — the LSP server tag the
+  extension downloads at first use from `lex-fmt/lex`.
+- `extension.toml` → `[grammars.lex] commit` — the 40-char
+  `tree-sitter-lex` SHA Zed clones and builds itself (Zed pins grammars
+  by SHA, not tag). Nothing in this repo downloads the grammar, so this
+  is its only pin.
 
-Bumping the LSP version is a one-file change. Bumping the grammar
-needs both `lex-deps.json` and the SHA in `extension.toml`.
+Each is a one-file change.
 
 ## Development
 

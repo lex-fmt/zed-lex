@@ -36,9 +36,13 @@ GRAMMAR_DIR="${GRAMMAR_DIR:-}"
 # grammar.json) and echo its path.  Resolution order:
 #   1. ../tree-sitter-lex sibling checkout
 #   2. /tmp/tree-sitter-lex (already-extracted)
-#   3. Download release tarball from GitHub at the version pinned in
-#      shared/lex-deps.json
+#   3. Download the GitHub source archive at the grammar pin in
+#      extension.toml's [grammars.lex] (repository + commit)
 # Always runs `tree-sitter generate` (idempotent) so grammar.json exists.
+#
+# The download pin comes from extension.toml because that is the pin Zed
+# itself fetches and builds: testing the queries against any other revision
+# would validate them against a grammar no user ever runs.
 setup_grammar() {
     if [[ -n "$GRAMMAR_DIR" && -f "$GRAMMAR_DIR/src/grammar.json" ]]; then
         echo "$GRAMMAR_DIR"
@@ -51,14 +55,18 @@ setup_grammar() {
     elif [[ -d /tmp/tree-sitter-lex/src ]]; then
         dir=/tmp/tree-sitter-lex
     else
-        local ts_version ts_repo url
-        ts_version=$(python3 -c "import json;print(json.load(open('$REPO_DIR/shared/lex-deps.json'))['tree-sitter'])")
-        ts_repo=$(python3 -c "import json;d=json.load(open('$REPO_DIR/shared/lex-deps.json'));print(d.get('tree-sitter-repo','lex-fmt/tree-sitter-lex'))")
+        local ts_repo_url ts_repo ts_commit url
+        ts_repo_url=$(toml_path grammars.lex.repository)
+        ts_commit=$(toml_path grammars.lex.commit)
+        ts_repo="${ts_repo_url#https://github.com/}"
+        ts_repo="${ts_repo%.git}"
         dir="$(mktemp -d -t zed-lex-ts.XXXXXX)/tree-sitter-lex"
         mkdir -p "$dir"
-        url="https://github.com/${ts_repo}/releases/download/${ts_version}/tree-sitter.tar.gz"
+        url="https://github.com/${ts_repo}/archive/${ts_commit}.tar.gz"
         curl -fsSL "$url" -o "$dir/tree-sitter.tar.gz"
-        tar -xzf "$dir/tree-sitter.tar.gz" -C "$dir"
+        # A GitHub source archive nests everything under <repo>-<sha>/;
+        # strip that level so the grammar lands directly in $dir.
+        tar -xzf "$dir/tree-sitter.tar.gz" -C "$dir" --strip-components=1
     fi
 
     ( cd "$dir" && $TS_CLI generate >/dev/null )
