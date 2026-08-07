@@ -49,13 +49,13 @@ Open any `.lex` file. The status bar should read **Lex** (not Plain
 Text). On first open you may briefly see a "Downloading…" hint while
 `lex-lsp` is fetched.
 
-| Action | How |
-|---|---|
-| Format buffer | `cmd-shift-i` (or set `format_on_save` in settings) |
-| Outline / symbol picker | `cmd-shift-o` |
-| Go to definition | `f12` (works on references and footnote citations) |
-| Code actions / quickfixes | `cmd-.` |
-| Diagnostics panel | `cmd-shift-m` |
+| Action                    | How                                                 |
+| ------------------------- | --------------------------------------------------- |
+| Format buffer             | `cmd-shift-i` (or set `format_on_save` in settings) |
+| Outline / symbol picker   | `cmd-shift-o`                                       |
+| Go to definition          | `f12` (works on references and footnote citations)  |
+| Code actions / quickfixes | `cmd-.`                                             |
+| Diagnostics panel         | `cmd-shift-m`                                       |
 
 Logs from the extension and LSP show up in `zed: open log`. For
 verbose startup logs, launch Zed from a terminal with `zed --foreground`.
@@ -104,12 +104,12 @@ scaffolding — fade the scaffolding so the prose reads first.
 
 ### Intensity hierarchy
 
-| Tier | Light mode | Dark mode | Used for |
-|---|---|---|---|
-| **normal** | `#000000` | `#e0e0e0` | Headings, prose body, definition subjects, bold/italic, code |
-| **muted** | `#808080` | `#888888` | List markers, references, links |
-| **faint** | `#b3b3b3` | `#666666` | Annotations (`:: ::`), verbatim metadata, table pipes |
-| **faintest** | `#cacaca` | `#555555` | Inline syntax markers (reserved, unused under Zed currently) |
+| Tier         | Light mode | Dark mode | Used for                                                     |
+| ------------ | ---------- | --------- | ------------------------------------------------------------ |
+| **normal**   | `#000000`  | `#e0e0e0` | Headings, prose body, definition subjects, bold/italic, code |
+| **muted**    | `#808080`  | `#888888` | List markers, references, links                              |
+| **faint**    | `#b3b3b3`  | `#666666` | Annotations (`:: ::`), verbatim metadata, table pipes        |
+| **faintest** | `#cacaca`  | `#555555` | Inline syntax markers (reserved, unused under Zed currently) |
 
 Headings stay bold. Definition subjects and emphasis stay italic.
 Strong stays bold. Everything else is colour only — Zed's syntax
@@ -129,8 +129,8 @@ carry over here.
 ```jsonc
 {
   "theme_overrides": {
-    "One Dark":  { "syntax": { /* dark intensities */ } },
-    "One Light": { "syntax": { /* light intensities */ } }
+    "One Dark": { "syntax": {/* dark intensities */} },
+    "One Light": { "syntax": {/* light intensities */} }
   }
 }
 ```
@@ -208,21 +208,53 @@ Zed does not yet ship a built-in prose spell checker; the de-facto
 extension is [Codebook][codebook], a tree-sitter-driven spell checker
 that runs as a language server.
 
-This repo ships a reference query for codebook at
-`codebook/queries/lex.scm` mirroring the
+Installing codebook is not enough on its own. Zed starts a language
+server only for the languages named in that _server's_ extension
+manifest, and `settings.json` cannot add one — a
+`"language_servers": ["codebook", "..."]` entry under `Lex` is inert
+until `"Lex"` appears in codebook's own manifest.
+
+Patch it in locally:
+
+```sh
+# 1. add "Lex" to [language_servers.codebook] languages = [...]
+$EDITOR ~/Library/Application\ Support/Zed/extensions/installed/codebook/extension.toml
+# 2. drop Zed's cached extension index so the manifest is re-read
+rm ~/Library/Application\ Support/Zed/extensions/index.json
+# 3. restart Zed
+```
+
+Codebook updates overwrite that manifest, so re-apply after each one.
+The permanent fix is a one-line addition upstream in
+[`blopker/codebook-zed`][codebook-zed] — the same treatment AsciiDoc,
+MDX, Astro and Vue already get.
+
+Codebook has no Lex grammar, so it falls back to its `Text` language
+type: the whole buffer is word-split, including verbatim blocks and
+`:: label ::` params. For prose-first documents that is usable but
+noisy; narrow it with `ignore_patterns` in a project `codebook.toml`.
+
+Precise checking needs codebook to link the grammar natively — it runs
+as its own process and cannot use the wasm grammar Zed builds. That
+means publishing `tree-sitter-lex` to crates.io (Rust bindings plus a
+`cc`-based `build.rs`; the repo has neither yet) and a codebook-core PR
+adding a `LanguageSetting` for Lex. The query for it is already staged
+here at `codebook/queries/lex.scm`, mirroring the
 [canonical `@spell` / `@nospell` policy from `tree-sitter-lex`][ts-lex] —
 all prose checked (titles, paragraphs, list items, definitions, table
 cells, verbatim subjects, annotation block bodies, trailing
 descriptors), labels and verbatim bodies skipped.
 
-Codebook does not currently support user-supplied per-language queries
-via config, so the file is staged here pending upstream contribution.
-Once it lands in [`blopker/codebook`][codebook] (or you build codebook
-from a fork with this query patched in) installing codebook from the
-Zed extension marketplace is enough — Zed picks it up as a language
-server and applies it to `.lex` files automatically.
+Other spell checkers work the same way, so the same one-line manifest
+addition applies to [zed-typos][zed-typos] and [zed-cspell][zed-cspell].
+[Harper][harper] is the exception: it has no plain-text mode to fall
+back on, so it needs real upstream Lex support.
 
 [codebook]: https://github.com/blopker/codebook
+[codebook-zed]: https://github.com/blopker/codebook-zed
+[zed-typos]: https://github.com/BaptisteRoseau/zed-typos
+[zed-cspell]: https://github.com/BaptisteRoseau/zed-cspell
+[harper]: https://github.com/zed-extensions/harper
 
 ## Troubleshooting
 

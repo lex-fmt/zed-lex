@@ -11,29 +11,30 @@ combination instead.
 Run after editing LANGUAGES below, then commit the resulting injections.scm.
 A bats test asserts the file matches what this script would produce.
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # (zed_language_id, [annotation_aliases]).  zed_language_id must match
 # Zed's language ID exactly (typically lowercase). Aliases are matched
 # against the raw annotation_header text via #match? on a regex like
 # "^\\s*(alias1|alias2)\\b".
 LANGUAGES: list[tuple[str, list[str]]] = [
-    ("python",      ["python"]),
-    ("json",        ["json"]),
-    ("javascript",  ["javascript", "js"]),
-    ("typescript",  ["typescript", "ts"]),
-    ("rust",        ["rust"]),
-    ("go",          ["go"]),
+    ("python", ["python"]),
+    ("json", ["json"]),
+    ("javascript", ["javascript", "js"]),
+    ("typescript", ["typescript", "ts"]),
+    ("rust", ["rust"]),
+    ("go", ["go"]),
     ("shellscript", ["bash", "shell", "sh", "zsh"]),
-    ("yaml",        ["yaml"]),
-    ("toml",        ["toml"]),
-    ("html",        ["html"]),
-    ("css",         ["css"]),
-    ("sql",         ["sql"]),
-    ("markdown",    ["markdown", "md"]),
+    ("yaml", ["yaml"]),
+    ("toml", ["toml"]),
+    ("html", ["html"]),
+    ("css", ["css"]),
+    ("sql", ["sql"]),
+    ("markdown", ["markdown", "md"]),
 ]
 
 # Verbatim content can be parsed as any of these block types because
@@ -97,7 +98,9 @@ def render() -> str:
 
 
 def main() -> int:
-    target = Path(__file__).resolve().parent.parent / "languages" / "lex" / "injections.scm"
+    target = (
+        Path(__file__).resolve().parent.parent / "languages" / "lex" / "injections.scm"
+    )
     new = render()
     if "--check" in sys.argv:
         current = target.read_text() if target.exists() else ""
@@ -111,7 +114,9 @@ def main() -> int:
         print(f"  ✓ {target.name} matches generator")
         return 0
     target.write_text(new)
-    print(f"wrote {target} ({len(LANGUAGES)} languages × {len(CONTENT_TYPES)} content types)")
+    print(
+        f"wrote {target} ({len(LANGUAGES)} languages × {len(CONTENT_TYPES)} content types)"
+    )
     return 0
 
 

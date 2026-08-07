@@ -27,18 +27,18 @@ set -euo pipefail
 : "${BUNDLE_DIR:?BUNDLE_DIR must be set by the canonical workflow}"
 
 if [ ! -d "${BUNDLE_DIR}" ]; then
-    echo "::error::BUNDLE_DIR=${BUNDLE_DIR} is not a directory (or doesn't exist)"
-    exit 1
+	echo "::error::BUNDLE_DIR=${BUNDLE_DIR} is not a directory (or doesn't exist)"
+	exit 1
 fi
 
 if [ ! -d shared ]; then
-    echo "::error::shared/ directory missing at repo root — expected shared/lex-deps.json"
-    exit 1
+	echo "::error::shared/ directory missing at repo root — expected shared/lex-deps.json"
+	exit 1
 fi
 
 if [ ! -f shared/lex-deps.json ]; then
-    echo "::error::shared/lex-deps.json missing — runtime deps pin file"
-    exit 1
+	echo "::error::shared/lex-deps.json missing — runtime deps pin file"
+	exit 1
 fi
 
 # Copy contents rather than the directory itself so the operation is

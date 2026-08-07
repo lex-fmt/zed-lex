@@ -25,6 +25,7 @@ Run after editing the canonical file or CAPTURE_TO_TOKEN / THEMES, then
 commit the regenerated file. The bats suite runs `gen-theme.py --check`
 so an out-of-sync snippet fails CI.
 """
+
 from __future__ import annotations
 
 import json
@@ -40,7 +41,7 @@ TARGET = REPO_DIR / "themes" / "lex-monochrome.json"
 # should be rendered for. Add more entries here for users on Ayu,
 # Gruvbox, Andromeda, etc.
 THEMES = {
-    "One Dark":  "dark",
+    "One Dark": "dark",
     "One Light": "light",
 }
 
@@ -57,20 +58,20 @@ BOLD = 700  # canonical CSS / Zed "bold" weight
 # token whose styling preserves existing zed behavior. To split them
 # you'd need new captures in highlights.scm first.
 CAPTURE_TO_TOKEN: dict[str, str] = {
-    "title.lex":                   "SessionTitleText",
-    "property.lex":                "DefinitionSubject",
-    "text.literal.lex":            "VerbatimContent",
-    "string.special.lex":          "VerbatimSubject",
+    "title.lex": "SessionTitleText",
+    "property.lex": "DefinitionSubject",
+    "text.literal.lex": "VerbatimContent",
+    "string.special.lex": "VerbatimSubject",
     "punctuation.list_marker.lex": "ListMarker",
-    "emphasis.lex":                "InlineEmphasis",
-    "emphasis.strong.lex":         "InlineStrong",
-    "string.escape.lex":           "VerbatimSubject",
-    "punctuation.special.lex":     "VerbatimSubject",
-    "comment.lex":                 "AnnotationContent",
-    "link_text.lex":               "Reference",
-    "link_uri.lex":                "Reference",
-    "constant.lex":                "Reference",
-    "punctuation.delimiter.lex":   "VerbatimSubject",
+    "emphasis.lex": "InlineEmphasis",
+    "emphasis.strong.lex": "InlineStrong",
+    "string.escape.lex": "VerbatimSubject",
+    "punctuation.special.lex": "VerbatimSubject",
+    "comment.lex": "AnnotationContent",
+    "link_text.lex": "Reference",
+    "link_uri.lex": "Reference",
+    "constant.lex": "Reference",
+    "punctuation.delimiter.lex": "VerbatimSubject",
 }
 
 

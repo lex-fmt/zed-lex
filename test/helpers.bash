@@ -50,44 +50,53 @@ GRAMMAR_DIR="${GRAMMAR_DIR:-}"
 # generate) with that step named on stderr, rather than carrying an empty
 # value forward into a later, less legible error.
 setup_grammar() {
-    if [[ -n "$GRAMMAR_DIR" && -f "$GRAMMAR_DIR/src/grammar.json" ]]; then
-        echo "$GRAMMAR_DIR"
-        return 0
-    fi
+	if [[ -n "$GRAMMAR_DIR" && -f "$GRAMMAR_DIR/src/grammar.json" ]]; then
+		echo "$GRAMMAR_DIR"
+		return 0
+	fi
 
-    local dir=""
-    if [[ -d "$REPO_DIR/../tree-sitter-lex/src" ]]; then
-        dir="$(cd "$REPO_DIR/../tree-sitter-lex" && pwd)"
-    elif [[ -d /tmp/tree-sitter-lex/src ]]; then
-        dir=/tmp/tree-sitter-lex
-    else
-        local ts_repo_url ts_repo ts_commit url tmp
-        # Every step below stops the function on failure. Left unchecked,
-        # a missing TOML path yields empty vars and the run dies much later
-        # on a malformed URL — a confusing curl/tar error standing in for
-        # the real one.
-        ts_repo_url=$(toml_path grammars.lex.repository) || return 1
-        ts_commit=$(toml_path grammars.lex.commit) || return 1
-        ts_repo="${ts_repo_url#https://github.com/}"
-        ts_repo="${ts_repo%.git}"
-        tmp=$(mktemp -d -t zed-lex-ts.XXXXXX) || return 1
-        dir="$tmp/tree-sitter-lex"
-        mkdir -p "$dir" || return 1
-        url="https://github.com/${ts_repo}/archive/${ts_commit}.tar.gz"
-        # curl -s silences curl's own error text, so name the failure here.
-        curl -fsSL "$url" -o "$dir/tree-sitter.tar.gz" \
-            || { echo "failed to download grammar archive: $url" >&2; return 1; }
-        # A GitHub source archive nests everything under <repo>-<sha>/;
-        # strip that level so the grammar lands directly in $dir.
-        tar -xzf "$dir/tree-sitter.tar.gz" -C "$dir" --strip-components=1 \
-            || { echo "failed to extract grammar archive from $url" >&2; return 1; }
-    fi
+	local dir=""
+	if [[ -d "$REPO_DIR/../tree-sitter-lex/src" ]]; then
+		dir="$(cd "$REPO_DIR/../tree-sitter-lex" && pwd)"
+	elif [[ -d /tmp/tree-sitter-lex/src ]]; then
+		dir=/tmp/tree-sitter-lex
+	else
+		local ts_repo_url ts_repo ts_commit url tmp
+		# Every step below stops the function on failure. Left unchecked,
+		# a missing TOML path yields empty vars and the run dies much later
+		# on a malformed URL — a confusing curl/tar error standing in for
+		# the real one.
+		ts_repo_url=$(toml_path grammars.lex.repository) || return 1
+		ts_commit=$(toml_path grammars.lex.commit) || return 1
+		ts_repo="${ts_repo_url#https://github.com/}"
+		ts_repo="${ts_repo%.git}"
+		tmp=$(mktemp -d -t zed-lex-ts.XXXXXX) || return 1
+		dir="$tmp/tree-sitter-lex"
+		mkdir -p "$dir" || return 1
+		url="https://github.com/${ts_repo}/archive/${ts_commit}.tar.gz"
+		# curl -s silences curl's own error text, so name the failure here.
+		curl -fsSL "$url" -o "$dir/tree-sitter.tar.gz" ||
+			{
+				echo "failed to download grammar archive: $url" >&2
+				return 1
+			}
+		# A GitHub source archive nests everything under <repo>-<sha>/;
+		# strip that level so the grammar lands directly in $dir.
+		tar -xzf "$dir/tree-sitter.tar.gz" -C "$dir" --strip-components=1 ||
+			{
+				echo "failed to extract grammar archive from $url" >&2
+				return 1
+			}
+	fi
 
-    ( cd "$dir" && $TS_CLI generate >/dev/null ) \
-        || { echo "tree-sitter generate failed in: $dir" >&2; return 1; }
-    GRAMMAR_DIR="$dir"
-    export GRAMMAR_DIR
-    echo "$dir"
+	(cd "$dir" && $TS_CLI generate >/dev/null) ||
+		{
+			echo "tree-sitter generate failed in: $dir" >&2
+			return 1
+		}
+	GRAMMAR_DIR="$dir"
+	export GRAMMAR_DIR
+	echo "$dir"
 }
 
 # --- Query assertions --------------------------------------------------------
@@ -95,46 +104,46 @@ setup_grammar() {
 # Confirm a .scm query parses and runs without error against $FIXTURE.
 # Empty .scm files are treated as valid (intentional placeholders).
 assert_query_parses() {
-    local query="$1"
-    if [[ ! -s "$query" ]]; then
-        return 0
-    fi
-    local out
-    out=$(cd "$GRAMMAR_DIR" && $TS_CLI query "$query" "$FIXTURE" 2>&1)
-    local rc=$?
-    if [[ $rc -ne 0 ]]; then
-        echo "query failed: $query" >&2
-        echo "$out" | head -20 >&2
-        return 1
-    fi
+	local query="$1"
+	if [[ ! -s "$query" ]]; then
+		return 0
+	fi
+	local out
+	out=$(cd "$GRAMMAR_DIR" && $TS_CLI query "$query" "$FIXTURE" 2>&1)
+	local rc=$?
+	if [[ $rc -ne 0 ]]; then
+		echo "query failed: $query" >&2
+		echo "$out" | head -20 >&2
+		return 1
+	fi
 }
 
 # Assert a query produces at least $min captures named @$name. Useful for
 # regression tests like "outline.scm must capture at least 3 sessions
 # from the fixture".
 assert_query_captures() {
-    local query="$1" name="$2" min="${3:-1}"
-    local out count
-    out=$(cd "$GRAMMAR_DIR" && $TS_CLI query "$query" "$FIXTURE" 2>&1)
-    if [[ $? -ne 0 ]]; then
-        echo "query failed to run: $query" >&2
-        echo "$out" | head -10 >&2
-        return 1
-    fi
-    count=$(echo "$out" | grep -cE "capture: [0-9]+ - $name|capture: $name" || true)
-    if [[ "$count" -lt "$min" ]]; then
-        echo "expected ≥$min @$name captures from $query, got $count" >&2
-        echo "$out" | head -20 >&2
-        return 1
-    fi
+	local query="$1" name="$2" min="${3:-1}"
+	local out count
+	out=$(cd "$GRAMMAR_DIR" && $TS_CLI query "$query" "$FIXTURE" 2>&1)
+	if [[ $? -ne 0 ]]; then
+		echo "query failed to run: $query" >&2
+		echo "$out" | head -10 >&2
+		return 1
+	fi
+	count=$(echo "$out" | grep -cE "capture: [0-9]+ - $name|capture: $name" || true)
+	if [[ "$count" -lt "$min" ]]; then
+		echo "expected ≥$min @$name captures from $query, got $count" >&2
+		echo "$out" | head -20 >&2
+		return 1
+	fi
 }
 
 # --- Manifest assertions -----------------------------------------------------
 
 # Read a top-level field from extension.toml. Fails if the field is missing.
 toml_field() {
-    local field="$1"
-    python3 - <<PY
+	local field="$1"
+	python3 - <<PY
 import sys, tomllib
 with open("$REPO_DIR/extension.toml","rb") as f:
     data = tomllib.load(f)
@@ -147,8 +156,8 @@ PY
 
 # Read a nested field like "grammars.lex.commit".
 toml_path() {
-    local path="$1"
-    python3 - <<PY
+	local path="$1"
+	python3 - <<PY
 import sys, tomllib
 with open("$REPO_DIR/extension.toml","rb") as f:
     data = tomllib.load(f)
@@ -162,30 +171,33 @@ PY
 }
 
 assert_toml_has_field() {
-    local field="$1"
-    toml_field "$field" >/dev/null
+	local field="$1"
+	toml_field "$field" >/dev/null
 }
 
 assert_toml_has_path() {
-    local path="$1"
-    toml_path "$path" >/dev/null
+	local path="$1"
+	toml_path "$path" >/dev/null
 }
 
 # Assert a JSON field at $REPO_DIR/$file equals $expected.
 assert_json_field_eq() {
-    local file="$1" key="$2" expected="$3"
-    local got
-    got=$(python3 -c "import json;print(json.load(open('$REPO_DIR/$file'))['$key'])")
-    if [[ "$got" != "$expected" ]]; then
-        echo "$file: $key = $got (expected $expected)" >&2
-        return 1
-    fi
+	local file="$1" key="$2" expected="$3"
+	local got
+	got=$(python3 -c "import json;print(json.load(open('$REPO_DIR/$file'))['$key'])")
+	if [[ "$got" != "$expected" ]]; then
+		echo "$file: $key = $got (expected $expected)" >&2
+		return 1
+	fi
 }
 
 assert_json_has_key() {
-    local file="$1" key="$2"
-    python3 -c "import json,sys;d=json.load(open('$REPO_DIR/$file'));sys.exit(0 if '$key' in d else 1)" \
-        || { echo "$file: missing key $key" >&2; return 1; }
+	local file="$1" key="$2"
+	python3 -c "import json,sys;d=json.load(open('$REPO_DIR/$file'));sys.exit(0 if '$key' in d else 1)" ||
+		{
+			echo "$file: missing key $key" >&2
+			return 1
+		}
 }
 
 # The mirror of assert_json_has_key: assert $key is ABSENT. Names the
@@ -193,21 +205,30 @@ assert_json_has_key() {
 # `run ...; [ "$status" -ne 0 ]` cannot do — that only reports a bare
 # status mismatch.
 assert_json_lacks_key() {
-    local file="$1" key="$2"
-    python3 -c "import json,sys;d=json.load(open('$REPO_DIR/$file'));sys.exit(1 if '$key' in d else 0)" \
-        || { echo "$file: unexpected key present: $key" >&2; return 1; }
+	local file="$1" key="$2"
+	python3 -c "import json,sys;d=json.load(open('$REPO_DIR/$file'));sys.exit(1 if '$key' in d else 0)" ||
+		{
+			echo "$file: unexpected key present: $key" >&2
+			return 1
+		}
 }
 
 # --- Format assertions -------------------------------------------------------
 
 assert_sha40() {
-    local v="$1"
-    [[ "$v" =~ ^[0-9a-f]{40}$ ]] \
-        || { echo "not a 40-char lowercase hex SHA: $v" >&2; return 1; }
+	local v="$1"
+	[[ "$v" =~ ^[0-9a-f]{40}$ ]] ||
+		{
+			echo "not a 40-char lowercase hex SHA: $v" >&2
+			return 1
+		}
 }
 
 assert_v_prefixed() {
-    local v="$1"
-    [[ "$v" =~ ^v[0-9] ]] \
-        || { echo "expected v-prefixed version, got: $v" >&2; return 1; }
+	local v="$1"
+	[[ "$v" =~ ^v[0-9] ]] ||
+		{
+			echo "expected v-prefixed version, got: $v" >&2
+			return 1
+		}
 }
